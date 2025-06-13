@@ -1,0 +1,37 @@
+{
+  "collection_name": "Example API Tests",
+  "base_url": "https://jsonplaceholder.typicode.com",
+  "requests": [
+    {
+      "name": "Get Posts",
+      "method": "GET",
+      "endpoint": "/posts",
+      "query_params": {
+        "limit": "5"
+      },
+      "tests": {
+        "status_code": 200,
+        "contains": ["userId", "id", "title"]
+      }
+    },
+    {
+      "name": "Create Post",
+      "method": "POST",
+      "endpoint": "/posts",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "title": "Test Post",
+        "body": "This is a test post",
+        "userId": "{{user_id}}"
+      },
+      "tests": {
+        "status_code": 201,
+        "json_field_equals": {
+          "title": "Test Post"
+        }
+      }
+    }
+  ]
+} 
