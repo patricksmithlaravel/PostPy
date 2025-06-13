@@ -43,4 +43,7 @@ htmlcov/
 
 # Distribution
 dist/
-build/ 
+build/
+
+# Sample directory
+samples/ 
