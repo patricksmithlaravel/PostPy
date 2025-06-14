@@ -1,4 +1,6 @@
-# PostPy
+# PostPy Mock Server (v1.3.0)
+
+> **Note:** This documentation is for PostPy v1.3.0.
 
 PostPy is a powerful Python library for API automation and testing. It provides tools for making HTTP requests, managing collections, and running a mock server for API testing.
 
@@ -69,6 +71,8 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 - Define endpoints and static responses in a YAML config file
 - Instantly simulate real API behavior for development and testing
 
+**Note:** The mock server only supports static responses. It does not interpolate or substitute variables from the request body, path, or query parameters in the response. All responses must be defined statically in the configuration file.
+
 ### Usage
 
 1. **Create a Mock Server Config**
@@ -79,11 +83,7 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 
 2. **Run the Mock Server**
    ```sh
-   postpy mock run <config_path> [--host HOST] [--port PORT] [--debug]
-   ```
-   Example:
-   ```sh
-   postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001 --debug
+   postpy mock run mock_config.yaml --host 127.0.0.1 --port 6060 --debug
    ```
 
 3. **Test Endpoints**
@@ -93,30 +93,92 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 
 ```yaml
 endpoints:
-  - path: /api/v1/health
-    method: GET
-    response:
-      status: "healthy"
-      version: "1.0.0"
-    status_code: 200
-
-  - path: /api/v1/users
-    method: GET
-    response:
-      users:
-        - id: 1
-          name: "John Doe"
-        - id: 2
-          name: "Jane Smith"
-    status_code: 200
-
-  - path: /api/v1/users
+  - path: /api/v1/auth/token
     method: POST
     response:
-      message: "User created successfully"
-      id: 3
-    status_code: 201
+      status_code: 200
+      body:
+        token: "mock-jwt-token-123"
+        expires_in: 3600
+
+  - path: /api/v1/devices
+    method: GET
+    response:
+      status_code: 200
+      body:
+        devices:
+          - id: router1
+            name: Router 1
+            status: online
+            type: router
+          - id: switch1
+            name: Switch 1
+            status: online
+            type: switch
+
+  - path: /api/v1/devices
+    method: POST
+    response:
+      status_code: 201
+      body:
+        id: "router2"
+        name: "New Router"
+        type: "router"
+        status: "online"
+        message: "Device created successfully"
+
+  - path: /api/v1/devices/{device_id}
+    method: GET
+    conditions:
+      - condition: "device_id not in ['router1', 'switch1']"
+        response:
+          status_code: 404
+          body:
+            error: "Device not found"
+            message: "The requested device does not exist"
+    response:
+      status_code: 200
+      body:
+        id: "router1"
+        name: "Device router1"
+        status: "online"
+        type: "router"
+        interfaces:
+          - name: eth0
+            ip: 192.168.1.1
+            status: up
+          - name: eth1
+            ip: 10.0.0.1
+            status: up
 ```
+
+### Configuration Format
+- `endpoints`: List of endpoint definitions.
+  - `path`: The URL path. Path parameters (e.g., `{device_id}`) are supported for routing only, not for response interpolation.
+  - `method`: HTTP method (GET, POST, etc.).
+  - `response`: The static response to return.
+    - `status_code`: HTTP status code.
+    - `body`: JSON body to return (static, no variable substitution).
+  - `conditions` (optional): List of conditions for error or alternate responses, based on path parameters only.
+
+### Limitations
+- No variable interpolation in responses.
+- Path parameters are only used for routing, not for dynamic content.
+- Request body, query parameters, and headers are ignored for response content.
+
+## Example Requests
+
+```sh
+curl -X POST http://127.0.0.1:6060/api/v1/auth/token
+curl http://127.0.0.1:6060/api/v1/devices
+curl -X POST -H "Content-Type: application/json" -d '{"id":"router2","name":"New Router","type":"router"}' http://127.0.0.1:6060/api/v1/devices
+curl http://127.0.0.1:6060/api/v1/devices/router1
+curl http://127.0.0.1:6060/api/v1/devices/invalid_device
+```
+
+## Troubleshooting
+- Ensure your config file does not use template variables in responses.
+- If you need dynamic responses, you must extend the server code yourself.
 
 For more details, see the CLI help:
 ```sh

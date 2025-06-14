@@ -11,40 +11,79 @@ endpoints:
   - path: /api/v1/auth/token
     method: POST
     response:
-      token: "mock-jwt-token-123"
-      expires_in: 3600
-    status_code: 200
+      status_code: 200
+      body:
+        token: "mock-jwt-token-123"
+        expires_in: 3600
 
   # Device endpoints
   - path: /api/v1/devices
     method: GET
     response:
-      devices:
-        - id: "router1"
-          name: "Router 1"
-          type: "router"
-          status: "online"
-        - id: "switch1"
-          name: "Switch 1"
-          type: "switch"
-          status: "online"
-    status_code: 200
+      status_code: 200
+      body:
+        devices:
+          - id: router1
+            name: Router 1
+            status: online
+            type: router
+          - id: switch1
+            name: Switch 1
+            status: online
+            type: switch
 
-  - path: /api/v1/devices/{device_id}
+  - path: /api/v1/devices
+    method: POST
+    response:
+      status_code: 201
+      body:
+        id: "router2"
+        name: "New Router"
+        type: "router"
+        status: "online"
+        message: "Device created successfully"
+
+  - path: /api/v1/devices/router1
     method: GET
     response:
-      id: "router1"
-      name: "Router 1"
-      type: "router"
-      status: "online"
-      interfaces:
-        - name: "eth0"
-          ip: "192.168.1.1"
-          status: "up"
-        - name: "eth1"
-          ip: "10.0.0.1"
-          status: "up"
-    status_code: 200
+      status_code: 200
+      body:
+        id: "router1"
+        name: "Device router1"
+        status: "online"
+        type: "router"
+        interfaces:
+          - name: eth0
+            ip: 192.168.1.1
+            status: up
+          - name: eth1
+            ip: 10.0.0.1
+            status: up
+
+  - path: /api/v1/devices/switch1
+    method: GET
+    response:
+      status_code: 200
+      body:
+        id: "switch1"
+        name: "Device switch1"
+        status: "online"
+        type: "switch"
+        interfaces:
+          - name: eth0
+            ip: 192.168.2.1
+            status: up
+          - name: eth1
+            ip: 10.0.1.1
+            status: up
+
+  - path: /api/v1/devices/invalid_device
+    method: GET
+    response:
+      status_code: 404
+      body:
+        error: "Device not found"
+        message: "The requested device does not exist"
 
   # NetBrain API endpoints
   - path: /ServicesAPI/API/V1/Session
@@ -71,8 +110,8 @@ endpoints:
   - path: /ServicesAPI/API/V1/Device/{device_id}
     method: GET
     response:
-      id: "router1"
-      name: "Router 1"
+      id: "{device_id}"
+      name: "Device {device_id}"
       type: "router"
       status: "online"
       interfaces:
@@ -83,6 +122,12 @@ endpoints:
           ip: "10.0.0.1"
           status: "up"
     status_code: 200
+    conditions:
+      - when: "{device_id} not in ['router1', 'switch1']"
+        response:
+          error: "Device not found"
+          message: "The requested device does not exist"
+        status_code: 404
 
   - path: /ServicesAPI/API/V1/Topology
     method: GET

@@ -31,6 +31,24 @@ class MockServer:
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
     
+    def _evaluate_condition(self, condition, params):
+        """Evaluate a condition string with the given parameters.
+        
+        Args:
+            condition (str): Condition string to evaluate
+            params (dict): Parameters to use in evaluation
+            
+        Returns:
+            bool: True if condition is met, False otherwise
+        """
+        try:
+            # Replace parameters in condition
+            for key, value in params.items():
+                condition = condition.replace(f"{{{key}}}", f"'{value}'")
+            return eval(condition)
+        except Exception:
+            return False
+    
     def _setup_routes(self):
         """Set up the Flask routes based on the configuration."""
         for endpoint in self.config.get('endpoints', []):
@@ -38,9 +56,16 @@ class MockServer:
             method = endpoint.get('method', 'GET').upper()
             response = endpoint.get('response', {})
             status_code = endpoint.get('status_code', 200)
+            conditions = endpoint.get('conditions', [])
             
-            def create_handler(resp, code):
+            def create_handler(resp, code, conds):
                 def handler(**kwargs):
+                    # Check conditions if any
+                    if conds and kwargs:
+                        for condition in conds:
+                            if self._evaluate_condition(condition['when'], kwargs):
+                                return jsonify(condition['response']), condition['status_code']
+                    
                     # Replace path parameters in response
                     if kwargs:
                         import json
@@ -58,7 +83,7 @@ class MockServer:
                 flask_path,
                 endpoint=f"{method}_{path}",
                 methods=[method],
-                view_func=create_handler(response, status_code)
+                view_func=create_handler(response, status_code, conditions)
             )
     
     def run(self, host='localhost', port=5000, debug=False):
