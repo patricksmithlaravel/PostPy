@@ -69,9 +69,11 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 ### Features
 - Create mock API servers for any REST API
 - Define endpoints and static responses in a YAML config file
-- Instantly simulate real API behavior for development and testing
-
-**Note:** The mock server only supports static responses. It does not interpolate or substitute variables from the request body, path, or query parameters in the response. All responses must be defined statically in the configuration file.
+- Support for different HTTP methods (GET, POST)
+- Path parameter handling for routing
+- Custom status codes
+- JSON response formatting
+- Basic error handling (404, 405)
 
 ### Usage
 
@@ -83,7 +85,7 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 
 2. **Run the Mock Server**
    ```sh
-   postpy mock run mock_config.yaml --host 127.0.0.1 --port 6060 --debug
+   postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001 --debug
    ```
 
 3. **Test Endpoints**
@@ -93,6 +95,13 @@ PostPy includes a built-in mock server for rapid API prototyping and testing.
 
 ```yaml
 endpoints:
+  - path: /api/v1/health
+    method: GET
+    response:
+      status: healthy
+      version: 1.0.0
+    status_code: 200
+
   - path: /api/v1/auth/token
     method: POST
     response:
@@ -129,13 +138,6 @@ endpoints:
 
   - path: /api/v1/devices/{device_id}
     method: GET
-    conditions:
-      - condition: "device_id not in ['router1', 'switch1']"
-        response:
-          status_code: 404
-          body:
-            error: "Device not found"
-            message: "The requested device does not exist"
     response:
       status_code: 200
       body:
@@ -154,31 +156,52 @@ endpoints:
 
 ### Configuration Format
 - `endpoints`: List of endpoint definitions.
-  - `path`: The URL path. Path parameters (e.g., `{device_id}`) are supported for routing only, not for response interpolation.
-  - `method`: HTTP method (GET, POST, etc.).
+  - `path`: The URL path. Path parameters (e.g., `{device_id}`) are supported for routing only.
+  - `method`: HTTP method (GET, POST).
   - `response`: The static response to return.
     - `status_code`: HTTP status code.
-    - `body`: JSON body to return (static, no variable substitution).
-  - `conditions` (optional): List of conditions for error or alternate responses, based on path parameters only.
+    - `body`: JSON body to return (static).
+  - `conditions` (optional): List of conditions for error responses.
 
 ### Limitations
-- No variable interpolation in responses.
-- Path parameters are only used for routing, not for dynamic content.
-- Request body, query parameters, and headers are ignored for response content.
+- Static responses only (no variable interpolation)
+- Path parameters are only used for routing
+- Limited HTTP method support (GET, POST)
+- Basic error handling (404, 405)
+- No request body validation
+- No query parameter handling
+- No response headers configuration
 
 ## Example Requests
 
 ```sh
-curl -X POST http://127.0.0.1:6060/api/v1/auth/token
-curl http://127.0.0.1:6060/api/v1/devices
-curl -X POST -H "Content-Type: application/json" -d '{"id":"router2","name":"New Router","type":"router"}' http://127.0.0.1:6060/api/v1/devices
-curl http://127.0.0.1:6060/api/v1/devices/router1
-curl http://127.0.0.1:6060/api/v1/devices/invalid_device
+# Health check
+curl http://127.0.0.1:5001/api/v1/health
+
+# Authentication
+curl -X POST http://127.0.0.1:5001/api/v1/auth/token
+
+# Device list
+curl http://127.0.0.1:5001/api/v1/devices
+
+# Create device
+curl -X POST -H "Content-Type: application/json" -d '{"name": "New Router"}' http://127.0.0.1:5001/api/v1/devices
+
+# Get specific device
+curl http://127.0.0.1:5001/api/v1/devices/router1
+
+# Test invalid device (404)
+curl http://127.0.0.1:5001/api/v1/devices/invalid_device
+
+# Test invalid method (405)
+curl -X PUT http://127.0.0.1:5001/api/v1/devices
 ```
 
 ## Troubleshooting
-- Ensure your config file does not use template variables in responses.
-- If you need dynamic responses, you must extend the server code yourself.
+- Ensure your config file uses static responses only
+- Check that endpoints are defined with correct paths and methods
+- Verify that path parameters are used correctly
+- Use debug mode for detailed error messages
 
 For more details, see the CLI help:
 ```sh
@@ -190,6 +213,15 @@ postpy mock --help
 - [API Reference](docs/api.md)
 - [Collections Guide](docs/collections.md)
 - [Environment Variables](docs/environment.md)
+
+## Dependencies
+- Flask >= 3.0.0
+- Click >= 8.1.0
+- PyYAML >= 6.0.0
+- Rich >= 13.0.0
+- Requests >= 2.31.0
+- Python-dotenv >= 1.0.0
+- Pydantic >= 2.0.0
 
 ## Usage
 
