@@ -1,0 +1,143 @@
+auth:
+  credentials:
+    username: "admin"
+    password: "admin123"
+  token:
+    value: "mock-token-12345"
+    expires_in: 3600
+    token_type: "Bearer"
+
+endpoints:
+  # Authentication endpoint
+  - method: "POST"
+    path: "/api/auth/login"
+    request:
+      schema:
+        type: "object"
+        properties:
+          username:
+            type: "string"
+          password:
+            type: "string"
+    response:
+      schema:
+        type: "object"
+        properties:
+          token:
+            type: "string"
+          expires_in:
+            type: "integer"
+          token_type:
+            type: "string"
+
+  # Generic list endpoint
+  - method: "GET"
+    path: "/api/{resource}"
+    response:
+      schema:
+        type: "object"
+        properties:
+          items:
+            type: "array"
+            items:
+              type: "object"
+      dynamic:
+        items: "{{ data[request.path_params.resource] }}"
+
+  # Generic detail endpoint
+  - method: "GET"
+    path: "/api/{resource}/{id}"
+    response:
+      schema:
+        type: "object"
+        properties:
+          item:
+            type: "object"
+      dynamic:
+        item: "{{ data[request.path_params.resource] | selectattr 'id' 'equalto' request.path_params.id | first }}"
+
+  # Generic create endpoint
+  - method: "POST"
+    path: "/api/{resource}"
+    request:
+      schema:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+    response:
+      schema:
+        type: "object"
+        properties:
+          id:
+            type: "string"
+          name:
+            type: "string"
+      dynamic:
+        id: "{{ 'id-' + request.body.name | lower | replace(' ', '-') }}"
+        name: "{{ request.body.name }}"
+
+  # Generic update endpoint
+  - method: "PUT"
+    path: "/api/{resource}/{id}"
+    request:
+      schema:
+        type: "object"
+        properties:
+          name:
+            type: "string"
+    response:
+      schema:
+        type: "object"
+        properties:
+          id:
+            type: "string"
+          name:
+            type: "string"
+      dynamic:
+        id: "{{ request.path_params.id }}"
+        name: "{{ request.body.name }}"
+
+  # Generic delete endpoint
+  - method: "DELETE"
+    path: "/api/{resource}/{id}"
+    response:
+      schema:
+        type: "object"
+        properties:
+          success:
+            type: "boolean"
+      dynamic:
+        success: "true"
+
+data:
+  # Example resources
+  devices:
+    - id: "id-router-01"
+      name: "Router 01"
+      type: "router"
+      status: "online"
+    - id: "id-switch-01"
+      name: "Switch 01"
+      type: "switch"
+      status: "online"
+    - id: "id-firewall-01"
+      name: "Firewall 01"
+      type: "firewall"
+      status: "maintenance"
+
+  users:
+    - id: "id-admin"
+      name: "Admin User"
+      role: "admin"
+    - id: "id-operator"
+      name: "Operator User"
+      role: "operator"
+
+  tasks:
+    - id: "id-task-01"
+      name: "Backup Configuration"
+      status: "completed"
+    - id: "id-task-02"
+      name: "Update Firmware"
+      status: "pending" 

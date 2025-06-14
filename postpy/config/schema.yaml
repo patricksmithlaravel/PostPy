@@ -1,0 +1,63 @@
+type: object
+properties:
+  auth:
+    type: object
+    properties:
+      credentials:
+        type: object
+        properties:
+          username:
+            type: string
+          password:
+            type: string
+      token:
+        type: object
+        properties:
+          value:
+            type: string
+          expires_in:
+            type: integer
+          token_type:
+            type: string
+            enum: [Bearer]
+  endpoints:
+    type: array
+    items:
+      type: object
+      properties:
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE]
+        path:
+          type: string
+        request:
+          type: object
+          properties:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                properties:
+                  type: object
+        response:
+          type: object
+          properties:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                properties:
+                  type: object
+            dynamic:
+              type: object
+              additionalProperties:
+                type: string
+  data:
+    type: object
+    additionalProperties: true
+required:
+  - auth
+  - endpoints
+  - data 

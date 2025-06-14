@@ -1,3 +1,6 @@
+"""
+Main CLI module for PostPy.
+"""
 import click
 from rich.console import Console
 from rich.table import Table
@@ -5,6 +8,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 import json
 from datetime import datetime
+from .mock import mock_group
 
 from ..core.loader import CollectionLoader
 from ..core.executor import RequestExecutor
@@ -12,9 +16,21 @@ from ..core.executor import RequestExecutor
 console = Console()
 
 @click.group()
+@click.version_option(version="1.1.0", prog_name="PostPy")
 def cli():
-    """PostPy - A Postman-style API testing tool"""
+    """[bold blue]PostPy[/bold blue] - API Testing and Automation Framework
+
+    A powerful tool for API testing, automation, and mock server development. PostPy helps you:
+    
+    • Test APIs with ease using a simple configuration
+    • Instantly serve mock API responses for development and testing
+    • Automate API workflows with a flexible framework
+    
+    For more information, visit: https://github.com/yourusername/postpy
+    """
     pass
+
+cli.add_command(mock_group, name='mock')
 
 @cli.command()
 @click.argument('collection_file')
@@ -42,46 +58,13 @@ def run_collection(collection_file: str, env_file: str, request_name: str):
             console.print(f"[red]No requests found{' matching ' + request_name if request_name else ''}[/red]")
             return
         
-        # Execute requests
-        for request in requests:
-            console.print(Panel(f"[bold blue]Executing: {request.name}[/bold blue]"))
-            
-            try:
-                response = executor.execute(request)
-                
-                # Display response
-                status_color = "green" if 200 <= response.status_code < 300 else "red"
-                console.print(f"Status: [{status_color}]{response.status_code}[/{status_color}]")
-                console.print(f"Time: {executor.history[-1].response_time:.2f}s")
-                
-                # Display response body
-                try:
-                    body = response.json()
-                    console.print(Syntax(json.dumps(body, indent=2), "json"))
-                except json.JSONDecodeError:
-                    console.print(response.text)
-                
-                # Run tests if specified
-                if request.tests:
-                    results = executor.run_tests(response, request.tests)
-                    table = Table(title="Test Results")
-                    table.add_column("Test", style="cyan")
-                    table.add_column("Result", style="green")
-                    
-                    for test, passed in results.items():
-                        status = "✓" if passed else "✗"
-                        color = "green" if passed else "red"
-                        table.add_row(test, f"[{color}]{status}[/{color}]")
-                    
-                    console.print(table)
-                
-            except Exception as e:
-                console.print(f"[red]Error executing request: {str(e)}[/red]")
-            
-            console.print()  # Add spacing between requests
-        
+        for req in requests:
+            response = executor.execute(req)
+            console.print(f"[green]Request:[/green] {req.name}")
+            console.print(f"[cyan]Status:[/cyan] {response.status_code}")
+            console.print(f"[yellow]Response:[/yellow] {response.text}")
     except Exception as e:
-        console.print(f"[red]Error: {str(e)}[/red]")
+        console.print(f"[red]Error:[/red] {str(e)}")
 
 @cli.command()
 @click.argument('collection_file')

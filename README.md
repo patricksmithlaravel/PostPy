@@ -1,50 +1,15 @@
 # PostPy
 
-A powerful Postman-style API testing and automation tool written in Python with a command-line interface. PostPy allows you to define, execute, and test API requests using collection files, with support for environment variables, test assertions, and request history tracking.
+PostPy is a powerful Python library for API automation and testing. It provides tools for making HTTP requests, managing collections, and running a mock server for API testing.
 
 ## Features
 
-### Core Features
-- **HTTP Request Support**
-  - All major HTTP methods (GET, POST, PUT, DELETE, PATCH)
-  - Custom headers configuration
-  - Query parameter support
-  - Request body support (JSON, form data, raw payloads)
-
-- **Environment Support**
-  - Environment variables via `.env` files
-  - Variable substitution using `{{variable}}` syntax
-  - Support for multiple environments
-
-- **Request Collections**
-  - JSON/YAML collection file format
-  - Base URL configuration
-  - Named requests with full configuration
-  - Test assertions per request
-
-- **Authentication**
-  - Basic Authentication
-  - Bearer Token
-  - API Key (header or query parameter)
-  - Custom authentication headers
-
-- **Testing & Assertions**
-  - Status code validation
-  - Response body content checking
-  - JSON field value matching
-  - Custom test assertions
-
-- **Request History**
-  - Track request execution history
-  - Response times
-  - Status codes
-  - Timestamps
-
-- **Rich CLI Interface**
-  - Colored output
-  - Formatted tables
-  - Syntax-highlighted JSON
-  - Progress indicators
+- 🚀 Simple and intuitive API for making HTTP requests
+- 📦 Collection management for organizing API endpoints
+- 🔄 Environment variable support
+- 📝 Comprehensive documentation
+- 🛠️ Extensible architecture
+- 🧪 Built-in mock server for API prototyping and testing
 
 ## Installation
 
@@ -65,6 +30,104 @@ git clone https://github.com/yourusername/postpy.git
 cd postpy
 pip install -e .
 ```
+
+## Quick Start
+
+### Making HTTP Requests
+
+```python
+from postpy import PostPy
+
+# Create a client
+client = PostPy()
+
+# Make a request
+response = client.get('https://api.example.com/users')
+print(response.json())
+```
+
+### Using Collections
+
+```python
+from postpy import PostPy
+
+# Load a collection
+client = PostPy()
+collection = client.load_collection('my_api.json')
+
+# Execute a request from the collection
+response = collection.execute('Get Users')
+print(response.json())
+```
+
+## Mock Server
+
+PostPy includes a built-in mock server for rapid API prototyping and testing.
+
+### Features
+- Create mock API servers for any REST API
+- Define endpoints and static responses in a YAML config file
+- Instantly simulate real API behavior for development and testing
+
+### Usage
+
+1. **Create a Mock Server Config**
+   ```sh
+   postpy mock init mock_config.yaml
+   ```
+   This generates a template YAML config you can edit.
+
+2. **Run the Mock Server**
+   ```sh
+   postpy mock run <config_path> [--host HOST] [--port PORT] [--debug]
+   ```
+   Example:
+   ```sh
+   postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001 --debug
+   ```
+
+3. **Test Endpoints**
+   Use `curl` or any HTTP client to test your endpoints as defined in your config.
+
+#### Example Mock Server Config
+
+```yaml
+endpoints:
+  - path: /api/v1/health
+    method: GET
+    response:
+      status: "healthy"
+      version: "1.0.0"
+    status_code: 200
+
+  - path: /api/v1/users
+    method: GET
+    response:
+      users:
+        - id: 1
+          name: "John Doe"
+        - id: 2
+          name: "Jane Smith"
+    status_code: 200
+
+  - path: /api/v1/users
+    method: POST
+    response:
+      message: "User created successfully"
+      id: 3
+    status_code: 201
+```
+
+For more details, see the CLI help:
+```sh
+postpy mock --help
+```
+
+## Documentation
+
+- [API Reference](docs/api.md)
+- [Collections Guide](docs/collections.md)
+- [Environment Variables](docs/environment.md)
 
 ## Usage
 
@@ -149,24 +212,19 @@ postpy/
 ├── __init__.py
 ├── core/
 │   ├── __init__.py
-│   ├── models.py      # Data models
-│   ├── executor.py    # Request execution
-│   └── loader.py      # Collection loading
+│   ├── mock_server.py # Mock server implementation
+│   ├── loader.py      # Collection loader
+│   └── executor.py    # Request executor
+├── utils/
+│   ├── __init__.py
+│   └── config_loader.py
 ├── cli/
 │   ├── __init__.py
-│   └── main.py        # CLI interface
-└── examples/
-    ├── api_tests.json # Example collection
-    └── .env          # Example environment
-```
-
-### Running Tests
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
+│   ├── main.py        # Main CLI
+│   └── mock.py        # Mock server CLI
+├── config/
+│   └── default_config.yaml
+└── ...
 ```
 
 ## Contributing

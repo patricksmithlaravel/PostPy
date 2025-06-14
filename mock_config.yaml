@@ -1,0 +1,101 @@
+endpoints:
+  # Health check endpoint
+  - path: /api/v1/health
+    method: GET
+    response:
+      status: healthy
+      version: 1.0.0
+    status_code: 200
+
+  # Authentication endpoints
+  - path: /api/v1/auth/token
+    method: POST
+    response:
+      token: "mock-jwt-token-123"
+      expires_in: 3600
+    status_code: 200
+
+  # Device endpoints
+  - path: /api/v1/devices
+    method: GET
+    response:
+      devices:
+        - id: "router1"
+          name: "Router 1"
+          type: "router"
+          status: "online"
+        - id: "switch1"
+          name: "Switch 1"
+          type: "switch"
+          status: "online"
+    status_code: 200
+
+  - path: /api/v1/devices/{device_id}
+    method: GET
+    response:
+      id: "router1"
+      name: "Router 1"
+      type: "router"
+      status: "online"
+      interfaces:
+        - name: "eth0"
+          ip: "192.168.1.1"
+          status: "up"
+        - name: "eth1"
+          ip: "10.0.0.1"
+          status: "up"
+    status_code: 200
+
+  # NetBrain API endpoints
+  - path: /ServicesAPI/API/V1/Session
+    method: POST
+    response:
+      token: "netbrain-mock-token-123"
+      expires_in: 3600
+    status_code: 200
+
+  - path: /ServicesAPI/API/V1/Device
+    method: GET
+    response:
+      devices:
+        - id: "router1"
+          name: "Router 1"
+          type: "router"
+          status: "online"
+        - id: "switch1"
+          name: "Switch 1"
+          type: "switch"
+          status: "online"
+    status_code: 200
+
+  - path: /ServicesAPI/API/V1/Device/{device_id}
+    method: GET
+    response:
+      id: "router1"
+      name: "Router 1"
+      type: "router"
+      status: "online"
+      interfaces:
+        - name: "eth0"
+          ip: "192.168.1.1"
+          status: "up"
+        - name: "eth1"
+          ip: "10.0.0.1"
+          status: "up"
+    status_code: 200
+
+  - path: /ServicesAPI/API/V1/Topology
+    method: GET
+    response:
+      nodes:
+        - id: "router1"
+          type: "router"
+          position: {"x": 100, "y": 100}
+        - id: "switch1"
+          type: "switch"
+          position: {"x": 200, "y": 100}
+      links:
+        - source: "router1"
+          target: "switch1"
+          type: "ethernet"
+    status_code: 200 
