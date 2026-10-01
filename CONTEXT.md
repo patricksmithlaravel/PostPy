@@ -35,7 +35,8 @@ postpy/
     ├── loader.py        # CollectionLoader: collections and .env files
     ├── mock_server.py   # Mock config schema (pydantic) and MockServer
     ├── models.py        # Collection, Request, TestAssertion, ...
-    └── runner.py        # CollectionRunner and RequestResult
+    ├── runner.py        # CollectionRunner and RequestResult
+    └── session.py       # PostPySession: redirect header stripping, loopback proxy bypass
 examples/                # Sample collections, env files, mock config
 tests/                   # pytest suite
 ```
@@ -49,6 +50,11 @@ tests/                   # pytest suite
 - `RequestExecutor` substitutes variables in the base URL, endpoint, headers,
   query parameters and body at any depth, in a single pass. It sends through
   one `requests.Session` with a timeout (default 30 s).
+- `RequestExecutor` and `PostPy` default to `PostPySession`. On a redirect to
+  a different host or port it forwards only `REDIRECT_SAFE_HEADERS`; on a same-host
+  redirect it keeps `Authorization` instead of letting `~/.netrc` replace it.
+  Loopback URLs skip environment proxies unless proxies were passed
+  explicitly. A caller-supplied plain `requests.Session` gets none of this.
 - `run_tests` returns one `AssertionResult` per check. `json_field_equals`
   accepts dotted paths with list indexes.
 - `CollectionRunner.iter_run` yields a `RequestResult` per request. Connection
