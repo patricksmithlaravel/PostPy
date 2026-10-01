@@ -102,6 +102,27 @@ def test_session_keeps_cookies_between_requests(echo_server):
     assert echoed["cookies"] == {"session": "abc"}
 
 
+@pytest.mark.parametrize("name", ["Authorization", "authorization", "AUTHORIZATION"])
+def test_authorization_header_takes_precedence_over_netrc(echo_server, netrc, name):
+    executor = RequestExecutor(echo_server, {"token": "s3cret"})
+    request = Request(
+        name="me", method="GET", endpoint="/me", headers={name: "Bearer {{token}}"}
+    )
+
+    echoed = executor.execute(request).json()
+
+    assert echoed["headers"]["authorization"] == "Bearer s3cret"
+
+
+def test_netrc_still_applies_without_authorization_header(echo_server, netrc):
+    executor = RequestExecutor(echo_server)
+    request = Request(name="me", method="GET", endpoint="/me", headers={"X-A": "1"})
+
+    echoed = executor.execute(request).json()
+
+    assert echoed["headers"]["authorization"] == netrc
+
+
 def run(body, tests, **kwargs):
     return {
         a.name: (a.passed, a.message)
