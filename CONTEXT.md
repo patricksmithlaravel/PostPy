@@ -1,220 +1,104 @@
-# CONTEXT (v1.3.0)
-
-> **Note:** This context is for PostPy v1.3.0.
-
 # PostPy Project Context
 
 ## Project Overview
-PostPy is a Python-based API testing and mocking framework. The mock server component allows you to serve static API responses for testing and development purposes.
 
-**Important Limitations:**
-- The mock server only supports static responses
-- Limited HTTP method support (GET, POST)
-- Basic error handling (404, 405)
-- No request body validation
-- No query parameter handling
-- No response headers configuration
+PostPy is a Python API testing and mocking tool with two halves:
+
+- **Collections:** JSON or YAML files of HTTP requests with `{{variable}}`
+  placeholders and assertions. They are run from the CLI (`postpy
+  run-collection`) or from Python (`PostPy().load_collection(...)`).
+- **Mock server:** A Flask app built from a YAML file of endpoints, with path
+  parameters, response headers and conditional responses (`postpy mock run`).
+
+The version is defined once, in `postpy/__init__.py`, and read by
+`pyproject.toml` and `postpy --version`.
 
 ## Directory Structure
+
 ```
 postpy/
-├── cli/                    # Command-line interface implementations
-│   ├── main.py            # Main CLI entry point
-│   └── mock.py            # Mock server CLI commands
-├── core/                   # Core functionality
-│   ├── mock_server.py     # Mock server implementation
-│   ├── loader.py          # Configuration loading
-│   └── models.py          # Data models
-├── utils/                  # Utility functions
-│   ├── config_loader.py   # YAML configuration loading
-│   └── __init__.py
-└── config/                 # Configuration files
-    ├── default_config.yaml # Default mock server config
-    └── schema.yaml        # Configuration schema
+├── __init__.py          # __version__ and public exports (PostPy, Collection, ...)
+├── __main__.py          # python -m postpy
+├── client.py            # PostPy: ad-hoc requests + load_collection()
+├── cli/
+│   ├── __init__.py      # Exposes `cli`, the console-script entry point
+│   ├── main.py          # run-collection, show-collection, show-history
+│   └── mock.py          # mock init, mock run
+├── config/
+│   └── mock_template.yaml  # Starter file written by `postpy mock init`
+└── core/
+    ├── conditions.py    # AST allow-list evaluator for mock `when` expressions
+    ├── errors.py        # Turns pydantic errors into `location: message` lines
+    ├── executor.py      # RequestExecutor: substitution, sending, assertions
+    ├── history.py       # HistoryStore: JSON-lines history per collection
+    ├── loader.py        # CollectionLoader: collections and .env files
+    ├── mock_server.py   # Mock config schema (pydantic) and MockServer
+    ├── models.py        # Collection, Request, TestAssertion, ...
+    └── runner.py        # CollectionRunner and RequestResult
+examples/                # Sample collections, env files, mock config
+tests/                   # pytest suite
 ```
 
-## Key Components
+## Key Design Points
 
-### 1. Mock Server
-The mock server is a Flask-based application that serves predefined API endpoints based on a YAML configuration file.
+### Collections
 
-#### Configuration Format
-```yaml
-endpoints:
-  - path: /api/v1/health
-    method: GET
-    response:
-      status: healthy
-      version: 1.0.0
-    status_code: 200
-```
-- `endpoints`: List of endpoint definitions.
-  - `path`: The URL path. Path parameters (e.g., `{device_id}`) are supported for routing only.
-  - `method`: HTTP method (GET, POST).
-  - `response`: The static response to return.
-    - `status_code`: HTTP status code.
-    - `body`: JSON body to return (static).
-  - `conditions` (optional): List of conditions for error responses.
+- `CollectionLoader` parses files into pydantic models (`models.py`).
+  `base_url` must be an absolute http(s) URL unless it contains `{{...}}`.
+- `RequestExecutor` substitutes variables in the base URL, endpoint, headers,
+  query parameters and body at any depth, in a single pass. It sends through
+  one `requests.Session` with a timeout (default 30 s).
+- `run_tests` returns one `AssertionResult` per check. `json_field_equals`
+  accepts dotted paths with list indexes.
+- `CollectionRunner.iter_run` yields a `RequestResult` per request. Connection
+  errors become failed results rather than aborting the run.
+- The CLI exits with status 1 if any result fails.
+- History lives in `$POSTPY_HOME/history` (default `~/.postpy`). Only the
+  request name, method, endpoint template, status and timing are stored.
 
-#### Features
-- Configurable endpoints with static responses
-- Support for GET and POST methods
-- Path parameter handling for routing
-- Custom status codes
-- JSON response formatting
-- Basic error handling (404, 405)
+### Mock Server
 
-### 2. Configuration System
-The project uses a YAML-based configuration system with:
-- Schema validation
-- Default configurations
-- Static response definitions
-- Basic error handling
-- Path parameter routing
-
-#### Configuration Examples
-
-1. **Health Check Endpoint**
-```yaml
-endpoints:
-  - path: /api/v1/health
-    method: GET
-    response:
-      status: healthy
-      version: 1.0.0
-    status_code: 200
-```
-
-2. **Device Endpoint**
-```yaml
-endpoints:
-  - path: /api/v1/devices
-    method: GET
-    response:
-      status_code: 200
-      body:
-        devices:
-          - id: router1
-            name: Router 1
-            status: online
-            type: router
-          - id: switch1
-            name: Switch 1
-            status: online
-            type: switch
-```
-
-3. **Error Response**
-```yaml
-endpoints:
-  - path: /api/v1/devices/invalid_device
-    method: GET
-    response:
-      status_code: 404
-      body:
-        error: "Device not found"
-        message: "The requested device does not exist"
-```
-
-## Usage Examples
-
-### Starting the Mock Server
-```bash
-# Basic usage
-postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001 --debug
-```
-
-### Testing Endpoints
-```bash
-# Health check
-curl http://127.0.0.1:5001/api/v1/health
-
-# Authentication
-curl -X POST http://127.0.0.1:5001/api/v1/auth/token
-
-# Device list
-curl http://127.0.0.1:5001/api/v1/devices
-
-# Create device
-curl -X POST -H "Content-Type: application/json" -d '{"name": "New Router"}' http://127.0.0.1:5001/api/v1/devices
-
-# Get specific device
-curl http://127.0.0.1:5001/api/v1/devices/router1
-
-# Test invalid device (404)
-curl http://127.0.0.1:5001/api/v1/devices/invalid_device
-
-# Test invalid method (405)
-curl -X PUT http://127.0.0.1:5001/api/v1/devices
-```
-
-## Common Issues and Solutions
-
-### 1. Configuration Loading
-- Issue: Invalid YAML format
-- Solution: Validate YAML syntax
-- Prevention: Use a YAML validator
-
-### 2. Port Conflicts
-- Issue: Port already in use
-- Solution: Use a different port
-- Prevention: Check port availability before starting
-
-### 3. Endpoint Not Found
-- Issue: 404 errors for expected endpoints
-- Solution: Verify endpoint definition in config
-- Prevention: Use debug mode to see available endpoints
-
-### 4. Method Not Allowed
-- Issue: 405 errors for valid endpoints
-- Solution: Check HTTP method in config
-- Prevention: Verify method support (GET, POST only)
-
-### 5. Invalid Response Format
-- Issue: Invalid JSON responses
-- Solution: Check response format in config
-- Prevention: Validate response format
+- `load_mock_config` validates the YAML into `MockConfig`/`MockEndpoint`/
+  `MockResponse` models. Endpoint keys are strict (`extra="forbid"`).
+  Duplicate method and path pairs are rejected.
+- Two response layouts are accepted and normalized to the envelope form
+  `response: {status_code, body, headers}`. The other is the 1.3 layout:
+  body under `response`, `status_code` beside it.
+- `{name}` path segments become Flask `<name>` rules. `{name}` placeholders in
+  response strings and headers are substituted on the parsed structure, never
+  on serialized JSON.
+- `conditions[].when` is compiled by `core/conditions.py` at load time. Only
+  literals, path parameters, comparisons and `and`/`or`/`not` are allowed. It
+  never calls `eval`.
+- Unmatched routes return JSON 404s; wrong methods return JSON 405s with an
+  `Allow` header.
+- `run()` always passes `use_debugger=False`. With `--debug` it reloads when
+  the config file changes.
 
 ## Development Guidelines
 
-### Adding New Features
-1. Update the core implementation in `core/`
-2. Add CLI commands in `cli/`
-3. Update configuration schema if needed
-4. Add tests for new functionality
-5. Update documentation
+```bash
+pip install -e ".[dev]"
+pytest
+black --check . && isort --check-only . && mypy
+```
 
-### Configuration Updates
-1. Modify the schema in `config/schema.yaml`
-2. Update default configurations
-3. Ensure backward compatibility
-4. Add validation rules
-5. Update documentation
+- Keep code compatible with Python 3.9 (use `typing.Optional`/`List`, not
+  `X | None`, in anything pydantic evaluates).
+- Add tests next to the area you change. `tests/conftest.py` provides a live
+  echo server, a live example mock server and a collection-file helper.
+- If you change a config format, update the template, the examples,
+  `YAML_GUIDE.md`, `README.md` and `CHANGELOG.md` together.
+  `tests/test_cli.py::test_example_collection_against_example_mock_server`
+  keeps the examples working.
+- Treat anything taken from an incoming request as data. Never build code,
+  JSON text or shell commands from it.
 
-### Testing
-1. Test all defined endpoints
-2. Verify error handling
-3. Test path parameters
-4. Test response formats
-5. Test invalid scenarios
+## Possible Future Improvements
 
-## Dependencies
-- Flask >= 3.0.0
-- Click >= 8.1.0
-- PyYAML >= 6.0.0
-- Rich >= 13.0.0
-- Requests >= 2.31.0
-- Python-dotenv >= 1.0.0
-- Pydantic >= 2.0.0
-
-## Future Improvements
-1. Support for more HTTP methods
-2. Request body validation
-3. Query parameter handling
-4. Response headers configuration
-5. Better error handling
-6. More configuration options
-7. Improved documentation
-8. Additional testing tools
-9. Request/response logging
-10. Performance monitoring 
+1. Matching on query parameters, request headers or request bodies in mock
+   conditions
+2. Request body validation for mock endpoints
+3. Saving values from one response for use in later requests
+4. CORS headers for browser clients of the mock server
+5. Publishing to PyPI under a distinct name

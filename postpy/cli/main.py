@@ -1,134 +1,247 @@
 """
 Main CLI module for PostPy.
 """
-import click
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.syntax import Syntax
-import json
-from datetime import datetime
-from .mock import mock_group
 
+import json
+from typing import Optional
+
+import click
+from pydantic import ValidationError
+from rich.console import Console
+from rich.highlighter import JSONHighlighter
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from .. import __version__
+from ..core.errors import format_validation_error
+from ..core.executor import DEFAULT_TIMEOUT
+from ..core.history import HistoryStore
 from ..core.loader import CollectionLoader
-from ..core.executor import RequestExecutor
+from ..core.models import Collection
+from ..core.runner import CollectionRunner, RequestResult
+from .mock import mock_group
+from .output import printable
 
 console = Console()
 
+
 @click.group()
-@click.version_option(version="1.1.0", prog_name="PostPy")
-def cli():
-    """[bold blue]PostPy[/bold blue] - API Testing and Automation Framework
+@click.version_option(version=__version__, prog_name="PostPy")
+def cli() -> None:
+    """PostPy - API Testing and Automation Framework
 
-    A powerful tool for API testing, automation, and mock server development. PostPy helps you:
-    
-    • Test APIs with ease using a simple configuration
-    • Instantly serve mock API responses for development and testing
-    • Automate API workflows with a flexible framework
-    
-    For more information, visit: https://github.com/yourusername/postpy
+    \b
+    Run collections of HTTP requests with assertions, view their history,
+    and serve mock APIs from a YAML file.
+
+    Documentation: https://github.com/patricksmithlaravel/PostPy
     """
-    pass
 
-cli.add_command(mock_group, name='mock')
 
-@cli.command()
-@click.argument('collection_file')
-@click.option('--env-file', '-e', help='Path to environment file')
-@click.option('--request-name', '-r', help='Run specific request by name')
-def run_collection(collection_file: str, env_file: str, request_name: str):
-    """Run requests from a collection file."""
+cli.add_command(mock_group, name="mock")
+
+
+def _load_collection(collection_file: str) -> Collection:
     try:
-        # Load collection
-        collection = CollectionLoader.load_collection(collection_file)
-        
-        # Load environment if provided
-        env_vars = {}
-        if env_file:
-            env = CollectionLoader.load_environment(env_file)
-            env_vars = env.variables
-        
-        # Initialize executor
-        executor = RequestExecutor(str(collection.base_url), env_vars)
-        
-        # Filter requests if name specified
-        requests = [r for r in collection.requests if not request_name or r.name == request_name]
-        
-        if not requests:
-            console.print(f"[red]No requests found{' matching ' + request_name if request_name else ''}[/red]")
+        return CollectionLoader.load_collection(collection_file)
+    except ValidationError as exc:
+        raise click.ClickException(
+            format_validation_error(exc, f"Invalid collection {collection_file}:")
+        ) from None
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from None
+
+
+def _print_body(result: RequestResult) -> None:
+    response = result.response
+    if response is None or not response.content:
+        return
+    if "json" in response.headers.get("Content-Type", "").lower():
+        try:
+            pretty = json.dumps(json.loads(response.text), indent=2, ensure_ascii=False)
+        except ValueError:
+            pass
+        else:
+            highlight = JSONHighlighter()
+            console.print(highlight(Text(printable(pretty))), soft_wrap=True)
             return
-        
-        for req in requests:
-            response = executor.execute(req)
-            console.print(f"[green]Request:[/green] {req.name}")
-            console.print(f"[cyan]Status:[/cyan] {response.status_code}")
-            console.print(f"[yellow]Response:[/yellow] {response.text}")
-    except Exception as e:
-        console.print(f"[red]Error:[/red] {str(e)}")
+    console.print(Text(printable(response.text)), soft_wrap=True)
+
+
+def _print_result(result: RequestResult, quiet: bool) -> None:
+    request = result.request
+    line = Text.assemble(
+        (
+            "PASS" if result.passed else "FAIL",
+            "bold green" if result.passed else "bold red",
+        ),
+        "  ",
+        (printable(request.name), "bold"),
+        "  ",
+        (request.method, "cyan"),
+        " ",
+        printable(request.endpoint),
+    )
+    if result.response is not None:
+        elapsed_ms = result.response.elapsed.total_seconds() * 1000
+        line.append(f"  -> {result.response.status_code}", style="yellow")
+        line.append(f" ({elapsed_ms:.0f} ms)", style="dim")
+    else:
+        line.append(f"  -> error: {printable(str(result.error))}", style="red")
+    console.print(line, soft_wrap=True)
+
+    for assertion in result.assertions:
+        console.print(
+            Text.assemble(
+                "    ",
+                (
+                    "ok  " if assertion.passed else "x   ",
+                    "green" if assertion.passed else "red",
+                ),
+                assertion.name,
+                (f"  {assertion.message}", "dim"),
+            ),
+            soft_wrap=True,
+        )
+    if not quiet:
+        _print_body(result)
+    console.print()
+
 
 @cli.command()
-@click.argument('collection_file')
-def show_collection(collection_file: str):
+@click.argument("collection_file", type=click.Path(dir_okay=False))
+@click.option(
+    "--env-file",
+    "-e",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to a .env file with variables for {{placeholders}}.",
+)
+@click.option("--request-name", "-r", help="Run only the request with this name.")
+@click.option(
+    "--timeout",
+    type=click.FloatRange(min=0, min_open=True),
+    default=DEFAULT_TIMEOUT,
+    show_default=True,
+    help="Seconds to wait for each response.",
+)
+@click.option("--quiet", "-q", is_flag=True, help="Do not print response bodies.")
+def run_collection(
+    collection_file: str,
+    env_file: Optional[str],
+    request_name: Optional[str],
+    timeout: float,
+    quiet: bool,
+) -> None:
+    """Run requests from a collection file and check their tests.
+
+    Exits with status 1 if any request fails or any test does not pass.
+    """
+    collection = _load_collection(collection_file)
+    variables = {}
+    if env_file:
+        variables = CollectionLoader.load_environment(env_file).variables
+
+    runner = CollectionRunner(collection, variables, timeout=timeout)
+    if request_name is not None:
+        try:
+            runner.get_request(request_name)
+        except KeyError as exc:
+            raise click.ClickException(exc.args[0]) from None
+
+    console.print(
+        Panel.fit(
+            Text(printable(collection.collection_name), style="bold blue"),
+            title="PostPy",
+        )
+    )
+    results = []
+    try:
+        for result in runner.iter_run(request_name):
+            results.append(result)
+            _print_result(result, quiet)
+    finally:
+        try:
+            HistoryStore(collection_file).append(runner.history)
+        except OSError as exc:
+            console.print(
+                Text(f"Could not save request history: {exc}", style="yellow")
+            )
+
+    failed = sum(1 for result in results if not result.passed)
+    summary = Text(f"{len(results) - failed} passed, {failed} failed")
+    summary.stylize("bold red" if failed else "bold green")
+    console.print(summary)
+    if failed:
+        raise click.exceptions.Exit(1)
+
+
+@cli.command()
+@click.argument("collection_file", type=click.Path(dir_okay=False))
+def show_collection(collection_file: str) -> None:
     """Display collection details."""
-    try:
-        collection = CollectionLoader.load_collection(collection_file)
-        
-        console.print(Panel(f"[bold blue]{collection.collection_name}[/bold blue]"))
-        console.print(f"Base URL: {collection.base_url}")
-        
-        table = Table(title="Requests")
-        table.add_column("Name", style="cyan")
-        table.add_column("Method", style="green")
-        table.add_column("Endpoint", style="yellow")
-        table.add_column("Tests", style="magenta")
-        
-        for request in collection.requests:
-            has_tests = "Yes" if request.tests else "No"
-            table.add_row(
-                request.name,
-                request.method,
-                request.endpoint,
-                has_tests
-            )
-        
-        console.print(table)
-        
-    except Exception as e:
-        console.print(f"[red]Error: {str(e)}[/red]")
+    collection = _load_collection(collection_file)
+
+    console.print(Panel(Text(printable(collection.collection_name), style="bold blue")))
+    console.print(Text(f"Base URL: {printable(collection.base_url)}"))
+
+    table = Table(title="Requests")
+    table.add_column("Name", style="cyan")
+    table.add_column("Method", style="green")
+    table.add_column("Endpoint", style="yellow")
+    table.add_column("Tests", style="magenta")
+
+    for request in collection.requests:
+        table.add_row(
+            Text(printable(request.name)),
+            Text(request.method),
+            Text(printable(request.endpoint)),
+            "Yes" if request.tests else "No",
+        )
+
+    console.print(table)
+
 
 @cli.command()
-@click.argument('collection_file')
-def show_history(collection_file: str):
-    """Display request history."""
-    try:
-        collection = CollectionLoader.load_collection(collection_file)
-        executor = RequestExecutor(str(collection.base_url))
-        
-        if not executor.history:
-            console.print("[yellow]No request history available[/yellow]")
-            return
-        
-        table = Table(title="Request History")
-        table.add_column("Method", style="cyan")
-        table.add_column("Endpoint", style="green")
-        table.add_column("Status", style="yellow")
-        table.add_column("Time", style="magenta")
-        table.add_column("Duration", style="blue")
-        
-        for entry in executor.history:
-            status_color = "green" if 200 <= entry.status_code < 300 else "red"
-            table.add_row(
-                entry.method,
-                entry.endpoint,
-                f"[{status_color}]{entry.status_code}[/{status_color}]",
-                entry.timestamp,
-                f"{entry.response_time:.2f}s"
-            )
-        
-        console.print(table)
-        
-    except Exception as e:
-        console.print(f"[red]Error: {str(e)}[/red]")
+@click.argument("collection_file", type=click.Path(dir_okay=False))
+@click.option(
+    "--limit",
+    "-n",
+    type=click.IntRange(min=1),
+    default=20,
+    show_default=True,
+    help="Number of most recent entries to show.",
+)
+def show_history(collection_file: str, limit: int) -> None:
+    """Display request history recorded by run-collection."""
+    store = HistoryStore(collection_file)
+    entries = store.read(limit=limit)
 
-def main():
-    cli() 
+    if not entries:
+        console.print(Text("No request history available", style="yellow"))
+        return
+
+    table = Table(title="Request History")
+    table.add_column("Time", style="magenta")
+    table.add_column("Name", style="cyan")
+    table.add_column("Method", style="cyan")
+    table.add_column("Endpoint", style="green")
+    table.add_column("Status", style="yellow")
+    table.add_column("Duration", style="blue")
+
+    for entry in reversed(entries):
+        status_color = "green" if 200 <= entry.status_code < 300 else "red"
+        table.add_row(
+            Text(printable(entry.timestamp.replace("T", " "))),
+            Text(printable(entry.name or "")),
+            Text(printable(entry.method)),
+            Text(printable(entry.endpoint)),
+            Text(str(entry.status_code), style=status_color),
+            f"{entry.response_time:.2f}s",
+        )
+
+    console.print(table)
+
+
+def main() -> None:
+    cli()

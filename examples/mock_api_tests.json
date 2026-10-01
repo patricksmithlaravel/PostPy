@@ -1,0 +1,82 @@
+{
+  "collection_name": "Mock Server Tests",
+  "base_url": "{{mock_url}}",
+  "requests": [
+    {
+      "name": "Health",
+      "method": "GET",
+      "endpoint": "/api/v1/health",
+      "tests": {
+        "status_code": 200,
+        "json_field_equals": { "status": "healthy" }
+      }
+    },
+    {
+      "name": "Get Token",
+      "method": "POST",
+      "endpoint": "/api/v1/auth/token",
+      "tests": {
+        "status_code": 200,
+        "contains": ["mock-jwt-token-123"]
+      }
+    },
+    {
+      "name": "List Devices",
+      "method": "GET",
+      "endpoint": "/api/v1/devices",
+      "tests": {
+        "status_code": 200,
+        "json_field_equals": {
+          "devices.0.id": "router1",
+          "devices.1.type": "switch"
+        }
+      }
+    },
+    {
+      "name": "Create Device",
+      "method": "POST",
+      "endpoint": "/api/v1/devices",
+      "body": { "name": "New Router" },
+      "tests": {
+        "status_code": 201,
+        "json_field_equals": { "id": "router2" }
+      }
+    },
+    {
+      "name": "Missing Device",
+      "method": "GET",
+      "endpoint": "/api/v1/devices/invalid_device",
+      "tests": {
+        "status_code": 404,
+        "json_field_equals": { "error": "Device not found" }
+      }
+    },
+    {
+      "name": "NetBrain Device",
+      "method": "GET",
+      "endpoint": "/ServicesAPI/API/V1/Device/{{device_id}}",
+      "tests": {
+        "status_code": 200,
+        "json_field_equals": { "id": "switch1", "name": "Device switch1" }
+      }
+    },
+    {
+      "name": "NetBrain Unknown Device",
+      "method": "GET",
+      "endpoint": "/ServicesAPI/API/V1/Device/firewall9",
+      "tests": {
+        "status_code": 404,
+        "json_field_equals": { "error": "Device not found" }
+      }
+    },
+    {
+      "name": "Wrong Method",
+      "method": "PUT",
+      "endpoint": "/api/v1/devices",
+      "tests": {
+        "status_code": 405,
+        "json_field_equals": { "error": "Method Not Allowed" }
+      }
+    }
+  ]
+}

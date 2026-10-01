@@ -1,97 +1,179 @@
-import json
+import re
 import time
-from typing import Dict, Optional, Union, Any
-import requests
 from datetime import datetime
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from .models import Request, RequestHistory, TestAssertion
+import requests
+
+from .models import AssertionResult, Request, RequestHistory, TestAssertion
+
+DEFAULT_TIMEOUT = 30.0
+
+_VARIABLE = re.compile(r"\{\{\s*([\w.-]+)\s*\}\}")
+_MISSING = object()
+
+
+def substitute_variables(value: Any, variables: Mapping[str, str]) -> Any:
+    """Replace ``{{variable}}`` placeholders, recursing into lists and dicts.
+
+    Placeholders with no matching variable are left unchanged.
+    """
+    if isinstance(value, str):
+        return _VARIABLE.sub(
+            lambda m: str(variables.get(m.group(1), m.group(0))), value
+        )
+    if isinstance(value, list):
+        return [substitute_variables(item, variables) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: substitute_variables(item, variables) for key, item in value.items()
+        }
+    return value
+
+
+def _lookup(data: Any, path: str) -> Any:
+    """Find ``path`` in parsed JSON.
+
+    An exact top-level key wins; otherwise the path is split on dots and list
+    items are addressed by index, e.g. ``data.items.0.id``.
+    """
+    if isinstance(data, dict) and path in data:
+        return data[path]
+    current = data
+    for part in path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list) and part.lstrip("-").isdigit():
+            index = int(part)
+            if not -len(current) <= index < len(current):
+                return _MISSING
+            current = current[index]
+        else:
+            return _MISSING
+    return current
+
 
 class RequestExecutor:
-    def __init__(self, base_url: str, environment_vars: Optional[Dict[str, str]] = None):
-        self.base_url = base_url.rstrip('/')
-        self.environment_vars = environment_vars or {}
+    def __init__(
+        self,
+        base_url: str,
+        environment_vars: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = DEFAULT_TIMEOUT,
+        session: Optional[requests.Session] = None,
+    ):
+        self.base_url = base_url
+        self.environment_vars = dict(environment_vars or {})
+        self.timeout = timeout
+        self.session = session or requests.Session()
         self.history: List[RequestHistory] = []
 
-    def _substitute_variables(self, value: str) -> str:
-        """Replace {{variable}} placeholders with their values."""
-        if not isinstance(value, str):
-            return value
-        
-        for var_name, var_value in self.environment_vars.items():
-            placeholder = f"{{{{{var_name}}}}}"
-            if placeholder in value:
-                value = value.replace(placeholder, str(var_value))
-        return value
+    def substitute(self, value: Any) -> Any:
+        """Fill in ``{{variable}}`` placeholders from the environment."""
+        return substitute_variables(value, self.environment_vars)
 
-    def _prepare_headers(self, headers: Optional[Dict[str, str]]) -> Dict[str, str]:
-        """Prepare headers with variable substitution."""
-        if not headers:
-            return {}
-        return {k: self._substitute_variables(v) for k, v in headers.items()}
+    def build_url(self, endpoint: str) -> str:
+        """Join the base URL and an endpoint after variable substitution.
 
-    def _prepare_query_params(self, params: Optional[Dict[str, str]]) -> Dict[str, str]:
-        """Prepare query parameters with variable substitution."""
-        if not params:
-            return {}
-        return {k: self._substitute_variables(v) for k, v in params.items()}
-
-    def _prepare_body(self, body: Optional[Union[Dict[str, Any], str]]) -> Optional[Union[Dict[str, Any], str]]:
-        """Prepare request body with variable substitution."""
-        if isinstance(body, dict):
-            return {k: self._substitute_variables(v) for k, v in body.items()}
-        elif isinstance(body, str):
-            return self._substitute_variables(body)
-        return body
+        An endpoint that is already an absolute URL is used as-is.
+        """
+        endpoint = self.substitute(endpoint)
+        if endpoint.startswith(("http://", "https://")):
+            return endpoint
+        base = self.substitute(self.base_url).rstrip("/")
+        if endpoint and not endpoint.startswith("/"):
+            endpoint = "/" + endpoint
+        return f"{base}{endpoint}"
 
     def execute(self, request: Request) -> requests.Response:
-        """Execute an HTTP request and return the response."""
-        url = f"{self.base_url}{request.endpoint}"
-        headers = self._prepare_headers(request.headers)
-        params = self._prepare_query_params(request.query_params)
-        body = self._prepare_body(request.body)
+        """Execute an HTTP request and return the response.
 
-        start_time = time.time()
-        response = requests.request(
+        Raises:
+            requests.RequestException: If the request could not be completed.
+        """
+        url = self.build_url(request.endpoint)
+        headers = self.substitute(request.headers or {})
+        params = self.substitute(request.query_params or {})
+        body = self.substitute(request.body)
+
+        start_time = time.perf_counter()
+        response = self.session.request(
             method=request.method,
             url=url,
             headers=headers,
             params=params,
-            json=body if isinstance(body, dict) else None,
-            data=body if isinstance(body, str) else None
+            json=body if isinstance(body, (dict, list)) else None,
+            data=body if isinstance(body, str) else None,
+            timeout=self.timeout,
         )
-        response_time = time.time() - start_time
+        response_time = time.perf_counter() - start_time
 
-        # Record request history
-        history_entry = RequestHistory(
-            method=request.method,
-            endpoint=request.endpoint,
-            timestamp=datetime.now().isoformat(),
-            status_code=response.status_code,
-            response_time=response_time
+        # The endpoint is recorded before substitution so that secrets passed
+        # in as variables do not end up in the history file.
+        self.history.append(
+            RequestHistory(
+                name=request.name,
+                method=request.method,
+                endpoint=request.endpoint,
+                timestamp=datetime.now().isoformat(timespec="seconds"),
+                status_code=response.status_code,
+                response_time=response_time,
+            )
         )
-        self.history.append(history_entry)
 
         return response
 
-    def run_tests(self, response: requests.Response, tests: TestAssertion) -> Dict[str, bool]:
+    def run_tests(
+        self, response: requests.Response, tests: TestAssertion
+    ) -> List[AssertionResult]:
         """Run test assertions against the response."""
-        results = {}
+        results: List[AssertionResult] = []
 
         if tests.status_code is not None:
-            results['status_code'] = response.status_code == tests.status_code
+            results.append(
+                AssertionResult(
+                    name="status_code",
+                    passed=response.status_code == tests.status_code,
+                    message=f"expected {tests.status_code}, got {response.status_code}",
+                )
+            )
 
-        if tests.contains:
-            response_text = response.text
-            results['contains'] = all(text in response_text for text in tests.contains)
+        for text in tests.contains or []:
+            found = text in response.text
+            results.append(
+                AssertionResult(
+                    name=f"contains {text!r}",
+                    passed=found,
+                    message="found" if found else "not found in response body",
+                )
+            )
 
         if tests.json_field_equals:
-            try:
-                response_json = response.json()
-                results['json_field_equals'] = all(
-                    response_json.get(key) == value
-                    for key, value in tests.json_field_equals.items()
+            parsed, data = self._parse_json(response)
+            for field, expected in tests.json_field_equals.items():
+                name = f"json_field_equals {field!r}"
+                if not parsed:
+                    results.append(
+                        AssertionResult(
+                            name=name, passed=False, message="response is not JSON"
+                        )
+                    )
+                    continue
+                actual = _lookup(data, field)
+                if actual is _MISSING:
+                    message = "field not found"
+                else:
+                    message = f"expected {expected!r}, got {actual!r}"
+                results.append(
+                    AssertionResult(
+                        name=name, passed=actual == expected, message=message
+                    )
                 )
-            except json.JSONDecodeError:
-                results['json_field_equals'] = False
 
-        return results 
+        return results
+
+    @staticmethod
+    def _parse_json(response: requests.Response) -> Tuple[bool, Any]:
+        try:
+            return True, response.json()
+        except ValueError:
+            return False, None
