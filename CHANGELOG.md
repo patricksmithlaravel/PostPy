@@ -45,9 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   given, and it writes the documented format.
 - Rich markup in response bodies or names (e.g. `[/posts]`) no longer crashes
   the CLI or changes its output.
-- Malformed `.env` lines, JSON array responses in `json_field_equals`, and
-  invalid collection or mock files now produce clear errors instead of
-  tracebacks.
+- Invalid collection and mock files now produce messages that say where the
+  problem is instead of tracebacks. `.env` lines without `=` are skipped
+  instead of crashing the loader, and `json_field_equals` no longer crashes on
+  JSON array responses.
 - Requests now time out (default 30 s, `--timeout`) instead of hanging.
 - Variables are substituted in endpoints, the base URL and nested bodies, not
   only in top-level body fields.
@@ -102,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New mock server feature for rapid API prototyping and testing
 - Static response configuration via YAML
 - CLI commands for mock server management
-- Comprehensive documentation for mock server
+- Documentation for mock server
 
 ### Changed
 - Updated project structure to include mock server components

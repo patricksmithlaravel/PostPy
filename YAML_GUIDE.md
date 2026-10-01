@@ -111,11 +111,11 @@ The `when` expression supports:
 | Comparisons | `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, including chains such as `1 < {n} <= 5` |
 | Boolean logic | `and`, `or`, `not`, parentheses |
 
-Anything else, such as function calls, attribute access, indexing or
-arithmetic, is rejected when the server starts, as is a reference to a path
-parameter the endpoint does not have. Path parameter values are only ever
-compared as data and never run as code. A comparison between incompatible
-types (for example a string with `>`) is simply false.
+The server refuses to start if a condition uses anything else, such as a
+function call, attribute access, indexing or arithmetic, or names a path
+parameter the endpoint does not have. Path parameter values are compared as
+data and never run as code. A comparison between incompatible types (for
+example a string with `>`) is false.
 
 ---
 
@@ -203,9 +203,7 @@ types (for example a string with `>`) is simply false.
 ### 7. Plain Text Instead of JSON
 
 A string `body` is sent as raw text when `headers` sets a non-JSON
-`Content-Type`. If that type is HTML or XML (including `image/svg+xml`),
-substituted path parameter values are HTML-escaped, so `/page/<script>` cannot
-inject markup:
+`Content-Type`:
 
 ```yaml
 - path: /metrics
@@ -215,6 +213,10 @@ inject markup:
       Content-Type: text/plain
     body: "requests_total 42\n"
 ```
+
+If that type is HTML or XML (including `image/svg+xml`), substituted path
+parameter values are HTML-escaped, so a request to `/page/<script>` cannot
+inject markup into the page.
 
 ### Reusing Responses
 
@@ -248,10 +250,10 @@ Configs written for PostPy 1.3 and earlier put the body directly under
   status_code: 200
 ```
 
-A `response` mapping is read in the new form only when its keys are some of
-`status_code`, `body` and `headers` and include `status_code` or `body`.
-Anything else is treated as a body in the older form. New configs should use
-the form shown in [Basic Structure](#basic-structure).
+PostPy reads `response` in the new form when it contains `status_code` or
+`body` and no keys other than `status_code`, `body` and `headers`. It treats
+anything else as a body in the older form. New configs should use the form
+shown in [Basic Structure](#basic-structure).
 
 ---
 
