@@ -246,6 +246,9 @@ more examples.
 
 ### Running Safely
 
+[RUNBOOK.md](RUNBOOK.md) has the full procedure: which address and port to
+use, handling credentials, running in CI, and what to do if a token leaks.
+
 - The server binds to `localhost` by default. Passing `--host 0.0.0.0` exposes
   it to your network, and PostPy prints a warning when you do.
 - `--debug` reloads the server when the config file changes. Werkzeug's
