@@ -1,233 +1,60 @@
-# PostPy Mock Server (v1.3.0)
+# PostPy
 
-> **Note:** This documentation is for PostPy v1.3.0.
-
-PostPy is a powerful Python library for API automation and testing. It provides tools for making HTTP requests, managing collections, and running a mock server for API testing.
+PostPy is a Postman-style API testing tool for Python. It runs collections of
+HTTP requests with assertions, keeps a request history, and serves mock APIs
+from a YAML file, from the command line or from Python.
 
 ## Features
 
-- 🚀 Simple and intuitive API for making HTTP requests
-- 📦 Collection management for organizing API endpoints
-- 🔄 Environment variable support
-- 📝 Comprehensive documentation
-- 🛠️ Extensible architecture
-- 🧪 Built-in mock server for API prototyping and testing
+- 🚀 Collections of requests in JSON or YAML, with `{{variable}}` placeholders
+- ✅ Assertions on status codes, response text and JSON fields, with a non-zero
+  exit code on failure so collections can run in CI
+- 🔄 Environment files for switching base URLs, tokens and IDs
+- 🕘 Per-collection request history
+- 🧪 A mock server that serves endpoints, headers and conditional responses
+  from YAML
+- 🐍 A small Python API (`PostPy`) for scripting the same things
 
 ## Installation
 
-### Prerequisites
-- Python 3.8 or higher
-- pip (Python package installer)
+PostPy requires Python 3.9 or newer. It is not published on PyPI (the `postpy`
+name there belongs to an unrelated project), so install it from GitHub:
 
-### Installation Methods
-
-1. **From PyPI**
 ```bash
-pip install postpy
+pip install git+https://github.com/patricksmithlaravel/PostPy.git
 ```
 
-2. **From Source**
+Or from a clone, for development:
+
 ```bash
-git clone https://github.com/yourusername/postpy.git
-cd postpy
-pip install -e .
+git clone https://github.com/patricksmithlaravel/PostPy.git
+cd PostPy
+pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
-### Making HTTP Requests
+Start the example mock server in one terminal:
 
-```python
-from postpy import PostPy
-
-# Create a client
-client = PostPy()
-
-# Make a request
-response = client.get('https://api.example.com/users')
-print(response.json())
+```bash
+postpy mock run examples/mock_config.yaml --port 5001
 ```
 
-### Using Collections
+Then run the example collection against it in another:
 
-```python
-from postpy import PostPy
-
-# Load a collection
-client = PostPy()
-collection = client.load_collection('my_api.json')
-
-# Execute a request from the collection
-response = collection.execute('Get Users')
-print(response.json())
+```bash
+postpy run-collection examples/mock_api_tests.json --env-file examples/mock.env
 ```
 
-## Mock Server
+Every request is printed with its status, assertion results and response body,
+followed by a summary such as `8 passed, 0 failed`.
 
-PostPy includes a built-in mock server for rapid API prototyping and testing.
-
-### Features
-- Create mock API servers for any REST API
-- Define endpoints and static responses in a YAML config file
-- Support for different HTTP methods (GET, POST)
-- Path parameter handling for routing
-- Custom status codes
-- JSON response formatting
-- Basic error handling (404, 405)
-
-### Usage
-
-1. **Create a Mock Server Config**
-   ```sh
-   postpy mock init mock_config.yaml
-   ```
-   This generates a template YAML config you can edit.
-
-2. **Run the Mock Server**
-   ```sh
-   postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001 --debug
-   ```
-
-3. **Test Endpoints**
-   Use `curl` or any HTTP client to test your endpoints as defined in your config.
-
-#### Example Mock Server Config
-
-```yaml
-endpoints:
-  - path: /api/v1/health
-    method: GET
-    response:
-      status: healthy
-      version: 1.0.0
-    status_code: 200
-
-  - path: /api/v1/auth/token
-    method: POST
-    response:
-      status_code: 200
-      body:
-        token: "mock-jwt-token-123"
-        expires_in: 3600
-
-  - path: /api/v1/devices
-    method: GET
-    response:
-      status_code: 200
-      body:
-        devices:
-          - id: router1
-            name: Router 1
-            status: online
-            type: router
-          - id: switch1
-            name: Switch 1
-            status: online
-            type: switch
-
-  - path: /api/v1/devices
-    method: POST
-    response:
-      status_code: 201
-      body:
-        id: "router2"
-        name: "New Router"
-        type: "router"
-        status: "online"
-        message: "Device created successfully"
-
-  - path: /api/v1/devices/{device_id}
-    method: GET
-    response:
-      status_code: 200
-      body:
-        id: "router1"
-        name: "Device router1"
-        status: "online"
-        type: "router"
-        interfaces:
-          - name: eth0
-            ip: 192.168.1.1
-            status: up
-          - name: eth1
-            ip: 10.0.0.1
-            status: up
-```
-
-### Configuration Format
-- `endpoints`: List of endpoint definitions.
-  - `path`: The URL path. Path parameters (e.g., `{device_id}`) are supported for routing only.
-  - `method`: HTTP method (GET, POST).
-  - `response`: The static response to return.
-    - `status_code`: HTTP status code.
-    - `body`: JSON body to return (static).
-  - `conditions` (optional): List of conditions for error responses.
-
-### Limitations
-- Static responses only (no variable interpolation)
-- Path parameters are only used for routing
-- Limited HTTP method support (GET, POST)
-- Basic error handling (404, 405)
-- No request body validation
-- No query parameter handling
-- No response headers configuration
-
-## Example Requests
-
-```sh
-# Health check
-curl http://127.0.0.1:5001/api/v1/health
-
-# Authentication
-curl -X POST http://127.0.0.1:5001/api/v1/auth/token
-
-# Device list
-curl http://127.0.0.1:5001/api/v1/devices
-
-# Create device
-curl -X POST -H "Content-Type: application/json" -d '{"name": "New Router"}' http://127.0.0.1:5001/api/v1/devices
-
-# Get specific device
-curl http://127.0.0.1:5001/api/v1/devices/router1
-
-# Test invalid device (404)
-curl http://127.0.0.1:5001/api/v1/devices/invalid_device
-
-# Test invalid method (405)
-curl -X PUT http://127.0.0.1:5001/api/v1/devices
-```
-
-## Troubleshooting
-- Ensure your config file uses static responses only
-- Check that endpoints are defined with correct paths and methods
-- Verify that path parameters are used correctly
-- Use debug mode for detailed error messages
-
-For more details, see the CLI help:
-```sh
-postpy mock --help
-```
-
-## Documentation
-
-- [API Reference](docs/api.md)
-- [Collections Guide](docs/collections.md)
-- [Environment Variables](docs/environment.md)
-
-## Dependencies
-- Flask >= 3.0.0
-- Click >= 8.1.0
-- PyYAML >= 6.0.0
-- Rich >= 13.0.0
-- Requests >= 2.31.0
-- Python-dotenv >= 1.0.0
-- Pydantic >= 2.0.0
-
-## Usage
+## Collections
 
 ### Collection File Format
 
-Create a collection file (e.g., `api_tests.json`):
+A collection is a JSON or YAML file:
+
 ```json
 {
   "collection_name": "My API Tests",
@@ -241,13 +68,14 @@ Create a collection file (e.g., `api_tests.json`):
         "Authorization": "Bearer {{token}}"
       },
       "query_params": {
-        "limit": "10"
+        "limit": 10
       },
       "tests": {
         "status_code": 200,
         "contains": ["users"],
         "json_field_equals": {
-          "status": "success"
+          "status": "success",
+          "users.0.id": 1
         }
       }
     }
@@ -255,18 +83,43 @@ Create a collection file (e.g., `api_tests.json`):
 }
 ```
 
-### Environment File
+| Field | Description |
+| --- | --- |
+| `collection_name` | Display name. |
+| `base_url` | Absolute `http(s)` URL, or a `{{variable}}` such as `{{base_url}}`. |
+| `requests[].name` | Name used by `--request-name` and `execute()`. |
+| `requests[].method` | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD` or `OPTIONS` (any case). |
+| `requests[].endpoint` | Path appended to `base_url`, or an absolute URL. |
+| `requests[].headers` | Optional header map. |
+| `requests[].query_params` | Optional query parameters. A list value repeats the parameter. |
+| `requests[].body` | Optional body. Objects and arrays are sent as JSON; a string is sent as-is. |
+| `requests[].tests` | Optional assertions, described below. |
 
-Create an environment file (e.g., `.env`):
+### Assertions
+
+| Assertion | Passes when |
+| --- | --- |
+| `status_code` | The response status equals this value. |
+| `contains` | Every listed string appears in the response body. |
+| `json_field_equals` | Each field in the JSON response equals the given value. Use dots for nested fields and numbers for list items, e.g. `data.items.0.id`. A key that literally contains a dot is matched first. |
+
+### Variables and Environment Files
+
+`{{name}}` placeholders in `base_url`, `endpoint`, `headers`, `query_params` and
+`body` (at any depth) are filled in from an environment file:
+
 ```env
+# .env
+base_url=https://staging.example.com
 token=your_auth_token
-api_key=your_api_key
-base_url=https://api.example.com
 ```
+
+Comments, quoted values and `export` prefixes are supported. Values are taken
+literally: `${OTHER}` is not expanded. Placeholders without a matching variable
+are sent unchanged.
 
 ### CLI Commands
 
-1. **Run Collection**
 ```bash
 # Run all requests in a collection
 postpy run-collection api_tests.json
@@ -274,66 +127,196 @@ postpy run-collection api_tests.json
 # Run with environment variables
 postpy run-collection api_tests.json --env-file .env
 
-# Run specific request by name
+# Run one request by name
 postpy run-collection api_tests.json --request-name "Get Users"
-```
 
-2. **Show Collection Details**
-```bash
+# Hide response bodies and wait at most 10 seconds per request
+postpy run-collection api_tests.json --quiet --timeout 10
+
+# Show the requests in a collection
 postpy show-collection api_tests.json
+
+# Show the 20 most recent requests run from a collection
+postpy show-history api_tests.json --limit 20
 ```
 
-3. **View Request History**
+`run-collection` exits with status 1 if any request cannot be sent or any
+assertion fails, so it can gate a CI job.
+
+History is stored under `~/.postpy/history/` (set `POSTPY_HOME` to move it).
+It records each request's name, method, endpoint template, status and timing.
+Headers, bodies and substituted variable values are never written to disk.
+
+## Python API
+
+```python
+from postpy import PostPy
+
+client = PostPy(environment=".env")  # or a dict, or omit it
+
+# Ad-hoc requests (a requests.Response is returned)
+response = client.get("{{base_url}}/users", params={"limit": 10})
+print(response.json())
+
+# Collections share the client's variables, cookies and timeout
+collection = client.load_collection("api_tests.json")
+response = collection.execute("Get Users")
+
+for result in collection.run():
+    print(result.request.name, result.passed)
+    for assertion in result.assertions:
+        print("  ", assertion.name, assertion.passed, assertion.message)
+```
+
+`PostPy(timeout=...)` sets the per-request timeout in seconds (default 30).
+`client.close()` or `with PostPy() as client:` closes the underlying session.
+
+## Mock Server
+
+The mock server serves endpoints defined in a YAML file.
+
 ```bash
-postpy show-history api_tests.json
+# Write a starter config (refuses to overwrite unless --force is given)
+postpy mock init mock_config.yaml
+
+# Serve it
+postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001
 ```
 
-## Package Dependencies
+On start-up the server validates the whole file and prints its endpoint table.
+Mistakes such as an unknown key, an unsupported method or a duplicate route
+are reported with their location instead of being ignored.
 
-- **Core Dependencies**
-  - `click>=8.1.0`: CLI framework
-  - `rich>=13.0.0`: Rich text and formatting
-  - `requests>=2.31.0`: HTTP client
-  - `python-dotenv>=1.0.0`: Environment variable management
-  - `pyyaml>=6.0.0`: YAML file support
-  - `pydantic>=2.0.0`: Data validation
+### Configuration Example
+
+```yaml
+endpoints:
+  - path: /api/v1/health
+    method: GET
+    response:
+      status_code: 200
+      body:
+        status: healthy
+
+  - path: /api/v1/devices
+    method: POST
+    response:
+      status_code: 201
+      headers:
+        Location: /api/v1/devices/router2
+      body:
+        id: router2
+
+  - path: /api/v1/devices/{device_id}
+    method: GET
+    response:
+      status_code: 200
+      body:
+        id: "{device_id}"
+        name: "Device {device_id}"
+    conditions:
+      - when: "{device_id} not in ['router1', 'switch1']"
+        response:
+          status_code: 404
+          body:
+            error: Device not found
+```
+
+- `method` may be `GET`, `POST`, `PUT`, `PATCH` or `DELETE`.
+- `response` holds `status_code` (default 200), `body` (any JSON value; omit it
+  for an empty response) and optional `headers`.
+- `{name}` in a path matches one URL segment. The same placeholder inside
+  response strings and header values is replaced with the matched value.
+- `conditions` are checked in order and the first one that is true replaces the
+  default response.
+- Requests that match no endpoint get a JSON 404; a known path with the wrong
+  method gets a JSON 405 with an `Allow` header.
+
+See [YAML_GUIDE.md](YAML_GUIDE.md) for the full format, the condition syntax and
+more examples.
+
+### Running Safely
+
+- The server binds to `localhost` by default. Passing `--host 0.0.0.0` exposes
+  it to your network, and PostPy prints a warning when you do.
+- `--debug` reloads the server when the config file changes. Werkzeug's
+  in-browser debugger stays disabled, because it can run arbitrary code.
+- Conditions are parsed against a small allow-list of syntax and are never
+  passed to `eval`, so values in the request URL cannot execute code.
+
+### Example Requests
+
+With `examples/mock_config.yaml` running on port 5001:
+
+```bash
+curl http://127.0.0.1:5001/api/v1/health
+curl -X POST http://127.0.0.1:5001/api/v1/auth/token
+curl http://127.0.0.1:5001/api/v1/devices
+curl -X POST -H "Content-Type: application/json" -d '{"name": "New Router"}' http://127.0.0.1:5001/api/v1/devices
+curl http://127.0.0.1:5001/ServicesAPI/API/V1/Device/router1
+curl http://127.0.0.1:5001/ServicesAPI/API/V1/Device/unknown   # 404 from a condition
+curl -X PUT http://127.0.0.1:5001/api/v1/devices               # 405
+```
+
+### Troubleshooting
+
+- **Address already in use:** pick another `--port`. On macOS, port 5000 is
+  often taken by AirPlay Receiver.
+- **404 for an endpoint you defined:** the `path` and `method` must both match.
+  Check the endpoint table printed at start-up.
+- **The server will not start:** read the validation message; it names the
+  endpoint and field at fault.
 
 ## Development
 
+```bash
+pip install -e ".[dev]"
+pytest              # tests
+black --check .     # formatting
+isort --check-only .
+mypy                # type checks
+```
+
+CI runs all of these on Python 3.9 to 3.14, then builds the package and runs
+the example collection against the example mock server.
+
 ### Project Structure
+
 ```
 postpy/
-├── __init__.py
-├── core/
-│   ├── __init__.py
-│   ├── mock_server.py # Mock server implementation
-│   ├── loader.py      # Collection loader
-│   └── executor.py    # Request executor
-├── utils/
-│   ├── __init__.py
-│   └── config_loader.py
+├── __init__.py          # Version and public API
+├── __main__.py          # python -m postpy
+├── client.py            # PostPy client class
 ├── cli/
-│   ├── __init__.py
-│   ├── main.py        # Main CLI
-│   └── mock.py        # Mock server CLI
+│   ├── main.py          # run-collection, show-collection, show-history
+│   └── mock.py          # mock init, mock run
 ├── config/
-│   └── default_config.yaml
-└── ...
+│   └── mock_template.yaml  # Written by `postpy mock init`
+└── core/
+    ├── conditions.py    # Safe condition expressions
+    ├── errors.py        # Validation error formatting
+    ├── executor.py      # Sends requests, runs assertions
+    ├── history.py       # Request history storage
+    ├── loader.py        # Collection and .env loading
+    ├── mock_server.py   # Mock server and its config schema
+    ├── models.py        # Collection data models
+    └── runner.py        # Runs collections
+examples/                # Sample collections, env files and mock config
+tests/                   # pytest suite
 ```
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Run the checks under [Development](#development)
+4. Open a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
 - Inspired by Postman's collection format
-- Built with Python's rich ecosystem of HTTP and CLI tools 
+- Built on requests, Flask, Click, Rich and pydantic

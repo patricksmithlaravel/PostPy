@@ -1,11 +1,18 @@
+# Example mock server configuration.
+#
+#   postpy mock run examples/mock_config.yaml --port 5001
+#
+# examples/mock_api_tests.json exercises every endpoint below.
+
 endpoints:
   # Health check endpoint
   - path: /api/v1/health
     method: GET
     response:
-      status: healthy
-      version: 1.0.0
-    status_code: 200
+      status_code: 200
+      body:
+        status: healthy
+        version: 1.0.0
 
   # Authentication endpoints
   - path: /api/v1/auth/token
@@ -36,6 +43,8 @@ endpoints:
     method: POST
     response:
       status_code: 201
+      headers:
+        Location: /api/v1/devices/router2
       body:
         id: "router2"
         name: "New Router"
@@ -89,58 +98,65 @@ endpoints:
   - path: /ServicesAPI/API/V1/Session
     method: POST
     response:
-      token: "netbrain-mock-token-123"
-      expires_in: 3600
-    status_code: 200
+      status_code: 200
+      body:
+        token: "netbrain-mock-token-123"
+        expires_in: 3600
 
   - path: /ServicesAPI/API/V1/Device
     method: GET
     response:
-      devices:
-        - id: "router1"
-          name: "Router 1"
-          type: "router"
-          status: "online"
-        - id: "switch1"
-          name: "Switch 1"
-          type: "switch"
-          status: "online"
-    status_code: 200
+      status_code: 200
+      body:
+        devices:
+          - id: "router1"
+            name: "Router 1"
+            type: "router"
+            status: "online"
+          - id: "switch1"
+            name: "Switch 1"
+            type: "switch"
+            status: "online"
 
+  # {device_id} in the path matches any value; in the body it is replaced
+  # with that value. The condition returns a 404 for unknown devices.
   - path: /ServicesAPI/API/V1/Device/{device_id}
     method: GET
     response:
-      id: "{device_id}"
-      name: "Device {device_id}"
-      type: "router"
-      status: "online"
-      interfaces:
-        - name: "eth0"
-          ip: "192.168.1.1"
-          status: "up"
-        - name: "eth1"
-          ip: "10.0.0.1"
-          status: "up"
-    status_code: 200
+      status_code: 200
+      body:
+        id: "{device_id}"
+        name: "Device {device_id}"
+        type: "router"
+        status: "online"
+        interfaces:
+          - name: "eth0"
+            ip: "192.168.1.1"
+            status: "up"
+          - name: "eth1"
+            ip: "10.0.0.1"
+            status: "up"
     conditions:
       - when: "{device_id} not in ['router1', 'switch1']"
         response:
-          error: "Device not found"
-          message: "The requested device does not exist"
-        status_code: 404
+          status_code: 404
+          body:
+            error: "Device not found"
+            message: "The requested device does not exist"
 
   - path: /ServicesAPI/API/V1/Topology
     method: GET
     response:
-      nodes:
-        - id: "router1"
-          type: "router"
-          position: {"x": 100, "y": 100}
-        - id: "switch1"
-          type: "switch"
-          position: {"x": 200, "y": 100}
-      links:
-        - source: "router1"
-          target: "switch1"
-          type: "ethernet"
-    status_code: 200 
+      status_code: 200
+      body:
+        nodes:
+          - id: "router1"
+            type: "router"
+            position: {"x": 100, "y": 100}
+          - id: "switch1"
+            type: "switch"
+            position: {"x": 200, "y": 100}
+        links:
+          - source: "router1"
+            target: "switch1"
+            type: "ethernet"

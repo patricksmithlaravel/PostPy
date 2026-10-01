@@ -1,0 +1,54 @@
+# PostPy mock server configuration.
+#
+# Run it with:  postpy mock run <this file> --port 5001
+# Full reference: YAML_GUIDE.md in the PostPy repository.
+#
+# Each endpoint needs a `path`, a `method` (GET, POST, PUT, PATCH or DELETE)
+# and a `response` made of `status_code`, `body` and optional `headers`.
+
+endpoints:
+  - path: /api/v1/health
+    method: GET
+    response:
+      status_code: 200
+      body:
+        status: healthy
+        version: 1.0.0
+
+  - path: /api/v1/users
+    method: GET
+    response:
+      status_code: 200
+      body:
+        users:
+          - id: 1
+            name: John Doe
+          - id: 2
+            name: Jane Smith
+
+  - path: /api/v1/users
+    method: POST
+    response:
+      status_code: 201
+      headers:
+        Location: /api/v1/users/3
+      body:
+        id: 3
+        message: User created successfully
+
+  # {user_id} matches any single path segment. The same placeholder inside a
+  # response string is replaced with the value from the URL.
+  - path: /api/v1/users/{user_id}
+    method: GET
+    response:
+      status_code: 200
+      body:
+        id: "{user_id}"
+        name: User {user_id}
+    # Conditions are checked in order; the first true one wins.
+    conditions:
+      - when: "{user_id} not in ['1', '2']"
+        response:
+          status_code: 404
+          body:
+            error: User not found

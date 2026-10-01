@@ -21,6 +21,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 env/
 ENV/
@@ -37,6 +38,7 @@ ENV/
 
 # Testing
 .coverage
+.mypy_cache/
 htmlcov/
 .pytest_cache/
 .tox/
