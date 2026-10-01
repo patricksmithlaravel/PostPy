@@ -2,18 +2,18 @@
 
 PostPy is a Postman-style API testing tool for Python. It runs collections of
 HTTP requests with assertions, keeps a request history, and serves mock APIs
-from a YAML file, from the command line or from Python.
+from a YAML file. You can drive it from the command line or from Python.
 
 ## Features
 
-- 🚀 Collections of requests in JSON or YAML, with `{{variable}}` placeholders
-- ✅ Assertions on status codes, response text and JSON fields, with a non-zero
+- Collections of requests in JSON or YAML, with `{{variable}}` placeholders
+- Assertions on status codes, response text and JSON fields, with a non-zero
   exit code on failure so collections can run in CI
-- 🔄 Environment files for switching base URLs, tokens and IDs
-- 🕘 Per-collection request history
-- 🧪 A mock server that serves endpoints, headers and conditional responses
+- Environment files for switching base URLs, tokens and IDs
+- Per-collection request history
+- A mock server that serves endpoints, headers and conditional responses
   from YAML
-- 🐍 A small Python API (`PostPy`) for scripting the same things
+- A small Python API (`PostPy`) for scripting the same things
 
 ## Installation
 
@@ -46,8 +46,8 @@ Then run the example collection against it in another:
 postpy run-collection examples/mock_api_tests.json --env-file examples/mock.env
 ```
 
-Every request is printed with its status, assertion results and response body,
-followed by a summary such as `8 passed, 0 failed`.
+PostPy prints each request with its status, assertion results and response
+body, then a summary such as `8 passed, 0 failed`.
 
 ## Collections
 
@@ -143,12 +143,12 @@ postpy show-history api_tests.json --limit 20
 `run-collection` exits with status 1 if any request cannot be sent or any
 assertion fails, so it can gate a CI job.
 
-History is stored under `~/.postpy/history/` (set `POSTPY_HOME` to move it),
+PostPy keeps history under `~/.postpy/history/` (set `POSTPY_HOME` to move it),
 readable only by your user. It records each request's name, method, endpoint
 template, status and timing. Headers, bodies and substituted variable values
-are never written to disk.
+never reach the disk.
 
-Control characters in response bodies and collection fields are printed as
+PostPy prints control characters from response bodies and collection fields as
 visible `\xNN` escapes, so a response cannot recolor, rewrite or retitle your
 terminal or set its clipboard.
 
@@ -193,8 +193,8 @@ postpy mock run mock_config.yaml --host 127.0.0.1 --port 5001
 ```
 
 On start-up the server validates the whole file and prints its endpoint table.
-Mistakes such as an unknown key, an unsupported method or a duplicate route
-are reported with their location instead of being ignored.
+If the file has an unknown key, an unsupported method or a duplicate route, the
+server refuses to start and reports where each problem is.
 
 ### Configuration Example
 
@@ -275,8 +275,8 @@ curl -X PUT http://127.0.0.1:5001/api/v1/devices               # 405
   often taken by AirPlay Receiver.
 - **404 for an endpoint you defined:** the `path` and `method` must both match.
   Check the endpoint table printed at start-up.
-- **The server will not start:** read the validation message; it names the
-  endpoint and field at fault.
+- **The server will not start:** the validation message lists each problem
+  with its location, such as `endpoints[3].method`.
 
 ## Development
 
@@ -300,7 +300,8 @@ postpy/
 ├── client.py            # PostPy client class
 ├── cli/
 │   ├── main.py          # run-collection, show-collection, show-history
-│   └── mock.py          # mock init, mock run
+│   ├── mock.py          # mock init, mock run
+│   └── output.py        # Escapes control characters before printing
 ├── config/
 │   └── mock_template.yaml  # Written by `postpy mock init`
 └── core/

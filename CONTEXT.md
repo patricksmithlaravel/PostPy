@@ -23,7 +23,8 @@ postpy/
 ├── cli/
 │   ├── __init__.py      # Exposes `cli`, the console-script entry point
 │   ├── main.py          # run-collection, show-collection, show-history
-│   └── mock.py          # mock init, mock run
+│   ├── mock.py          # mock init, mock run
+│   └── output.py        # printable(): escapes control characters for display
 ├── config/
 │   └── mock_template.yaml  # Starter file written by `postpy mock init`
 └── core/
@@ -53,17 +54,21 @@ tests/                   # pytest suite
 - `CollectionRunner.iter_run` yields a `RequestResult` per request. Connection
   errors become failed results rather than aborting the run.
 - The CLI exits with status 1 if any result fails.
-- History lives in `$POSTPY_HOME/history` (default `~/.postpy`). Only the
-  request name, method, endpoint template, status and timing are stored.
+- History lives in `$POSTPY_HOME/history` (default `~/.postpy`), in `0600`
+  files. It keeps only the request name, method, endpoint template, status and
+  timing.
+- Everything the CLI prints from a response or collection goes through
+  `cli/output.py:printable()`, which shows control characters as `\xNN`.
 
 ### Mock Server
 
 - `load_mock_config` validates the YAML into `MockConfig`/`MockEndpoint`/
   `MockResponse` models. Endpoint keys are strict (`extra="forbid"`).
   Duplicate method and path pairs are rejected.
-- Two response layouts are accepted and normalized to the envelope form
-  `response: {status_code, body, headers}`. The other is the 1.3 layout:
-  body under `response`, `status_code` beside it.
+- Two response layouts are accepted: the envelope form
+  `response: {status_code, body, headers}`, and the 1.3 layout with the body
+  under `response` and `status_code` beside it. Both are normalized to the
+  envelope form.
 - `{name}` path segments become Flask `<name>` rules. `{name}` placeholders in
   response strings and headers are substituted on the parsed structure, never
   on serialized JSON.
@@ -72,6 +77,8 @@ tests/                   # pytest suite
   never calls `eval`.
 - Unmatched routes return JSON 404s; wrong methods return JSON 405s with an
   `Allow` header.
+- A string body with an HTML or XML `Content-Type` is sent raw, with
+  substituted path values HTML-escaped.
 - `run()` always passes `use_debugger=False`. With `--debug` it reloads when
   the config file changes.
 

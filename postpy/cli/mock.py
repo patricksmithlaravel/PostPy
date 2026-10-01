@@ -21,11 +21,8 @@ LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 def mock_group() -> None:
     """Mock Server - Create and Run Mock API Servers
 
-    \b
-    The mock server allows you to:
-    1. Create mock API servers for testing
-    2. Define custom endpoints and responses
-    3. Simulate real API behavior locally
+    Serve API endpoints from a YAML file. Start with `postpy mock init` to
+    write a commented example config, then serve it with `postpy mock run`.
     """
 
 
