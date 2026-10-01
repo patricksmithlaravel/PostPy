@@ -1,3 +1,7 @@
+import os
+import stat
+import sys
+
 import pytest
 
 from postpy.core import history
@@ -65,3 +69,24 @@ def test_non_positive_limit(tmp_path, limit):
     store = HistoryStore(tmp_path / "c.json")
     store.append([entry(1)])
     assert store.read(limit=limit) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_history_is_private_to_the_owner(tmp_path):
+    store = HistoryStore(tmp_path / "c.json")
+    store.append([entry(1)])
+
+    assert stat.S_IMODE(os.stat(store.path).st_mode) == 0o600
+    assert stat.S_IMODE(os.stat(store.path.parent).st_mode) & 0o077 == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_existing_history_file_is_tightened(tmp_path):
+    store = HistoryStore(tmp_path / "c.json")
+    store.path.parent.mkdir(parents=True)
+    store.path.write_text("")
+    os.chmod(store.path, 0o644)
+
+    store.append([entry(1)])
+
+    assert stat.S_IMODE(os.stat(store.path).st_mode) == 0o600

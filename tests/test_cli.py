@@ -163,6 +163,30 @@ def test_markup_in_responses_and_names_is_printed_literally(
     assert "[red]Collection" in result.output
 
 
+@pytest.mark.parametrize("endpoint", ["/escape", "/escape-json"])
+def test_terminal_control_sequences_are_neutralized(
+    invoke, echo_server, write_collection, endpoint
+):
+    path = write_collection(
+        echo_server,
+        [{"name": "Evil\x1b[2J", "method": "GET", "endpoint": endpoint}],
+        name="C\x1b]0;x\x07",
+    )
+
+    for command in ("run-collection", "show-collection", "show-history"):
+        output = invoke(command, path).output
+        assert "\x1b" not in output and "\x9b" not in output and "\x07" not in output
+        assert "Evil\\x1b[2J" in output
+
+    output = invoke("run-collection", path).output
+    if endpoint == "/escape":
+        assert "ok\\x1b]0;title\\x07" in output
+        assert "\\x9b2K\nend" in output  # CRLF normalized, not shown as \x0d
+    else:
+        # json.dumps escapes ESC itself; the C1 byte needs printable().
+        assert '"a\\u001b[31mred\\x9b2K"' in output
+
+
 def test_invalid_collection(invoke, tmp_path):
     path = tmp_path / "c.json"
     path.write_text('{"collection_name": "C", "base_url": "nope", "requests": [{}]}')

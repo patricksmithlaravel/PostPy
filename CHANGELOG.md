@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `postpy mock run` warns when the server is bound to a non-loopback host.
 - `.env` files are read without `${VAR}` expansion, so a collection cannot pull
   in unrelated environment variables.
+- The CLI prints control characters from responses and collection files as
+  visible `\xNN` escapes. A malicious response could otherwise inject terminal
+  escape sequences to rewrite earlier output (for example a fake `PASS`),
+  change the window title or set the clipboard.
+- Path parameter values substituted into HTML or XML mock responses are
+  HTML-escaped, preventing reflected XSS on the mock server's origin.
+- Request history files are created owner-only (`0600` in a `0700`
+  directory).
+- The minimum `requests` version is now 2.32.4, which fixes `.netrc`
+  credentials leaking to crafted URLs (CVE-2024-47081).
 
 ### Fixed
 - The `postpy` command only exposed `mock`. `run-collection`,

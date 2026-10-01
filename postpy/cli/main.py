@@ -8,7 +8,7 @@ from typing import Optional
 import click
 from pydantic import ValidationError
 from rich.console import Console
-from rich.json import JSON
+from rich.highlighter import JSONHighlighter
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -21,6 +21,7 @@ from ..core.loader import CollectionLoader
 from ..core.models import Collection
 from ..core.runner import CollectionRunner, RequestResult
 from .mock import mock_group
+from .output import printable
 
 console = Console()
 
@@ -58,11 +59,14 @@ def _print_body(result: RequestResult) -> None:
         return
     if "json" in response.headers.get("Content-Type", "").lower():
         try:
-            console.print(JSON(response.text), soft_wrap=True)
-            return
-        except json.JSONDecodeError:
+            pretty = json.dumps(json.loads(response.text), indent=2, ensure_ascii=False)
+        except ValueError:
             pass
-    console.print(Text(response.text), soft_wrap=True)
+        else:
+            highlight = JSONHighlighter()
+            console.print(highlight(Text(printable(pretty))), soft_wrap=True)
+            return
+    console.print(Text(printable(response.text)), soft_wrap=True)
 
 
 def _print_result(result: RequestResult, quiet: bool) -> None:
@@ -73,18 +77,18 @@ def _print_result(result: RequestResult, quiet: bool) -> None:
             "bold green" if result.passed else "bold red",
         ),
         "  ",
-        (request.name, "bold"),
+        (printable(request.name), "bold"),
         "  ",
         (request.method, "cyan"),
         " ",
-        request.endpoint,
+        printable(request.endpoint),
     )
     if result.response is not None:
         elapsed_ms = result.response.elapsed.total_seconds() * 1000
         line.append(f"  -> {result.response.status_code}", style="yellow")
         line.append(f" ({elapsed_ms:.0f} ms)", style="dim")
     else:
-        line.append(f"  -> error: {result.error}", style="red")
+        line.append(f"  -> error: {printable(str(result.error))}", style="red")
     console.print(line, soft_wrap=True)
 
     for assertion in result.assertions:
@@ -146,7 +150,10 @@ def run_collection(
             raise click.ClickException(exc.args[0]) from None
 
     console.print(
-        Panel.fit(Text(collection.collection_name, style="bold blue"), title="PostPy")
+        Panel.fit(
+            Text(printable(collection.collection_name), style="bold blue"),
+            title="PostPy",
+        )
     )
     results = []
     try:
@@ -175,8 +182,8 @@ def show_collection(collection_file: str) -> None:
     """Display collection details."""
     collection = _load_collection(collection_file)
 
-    console.print(Panel(Text(collection.collection_name, style="bold blue")))
-    console.print(Text(f"Base URL: {collection.base_url}"))
+    console.print(Panel(Text(printable(collection.collection_name), style="bold blue")))
+    console.print(Text(f"Base URL: {printable(collection.base_url)}"))
 
     table = Table(title="Requests")
     table.add_column("Name", style="cyan")
@@ -186,9 +193,9 @@ def show_collection(collection_file: str) -> None:
 
     for request in collection.requests:
         table.add_row(
-            Text(request.name),
+            Text(printable(request.name)),
             Text(request.method),
-            Text(request.endpoint),
+            Text(printable(request.endpoint)),
             "Yes" if request.tests else "No",
         )
 
@@ -225,10 +232,10 @@ def show_history(collection_file: str, limit: int) -> None:
     for entry in reversed(entries):
         status_color = "green" if 200 <= entry.status_code < 300 else "red"
         table.add_row(
-            entry.timestamp.replace("T", " "),
-            Text(entry.name or ""),
-            entry.method,
-            Text(entry.endpoint),
+            Text(printable(entry.timestamp.replace("T", " "))),
+            Text(printable(entry.name or "")),
+            Text(printable(entry.method)),
+            Text(printable(entry.endpoint)),
             Text(str(entry.status_code), style=status_color),
             f"{entry.response_time:.2f}s",
         )

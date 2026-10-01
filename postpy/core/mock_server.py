@@ -2,6 +2,7 @@
 Mock server implementation.
 """
 
+import html
 import re
 from importlib import resources
 from pathlib import Path
@@ -226,11 +227,11 @@ def load_mock_config(config_path: Union[str, Path]) -> MockConfig:
         ) from None
 
 
-def _wants_raw_body(headers: Dict[str, str]) -> bool:
+def _content_type(headers: Dict[str, str]) -> str:
     for name, value in headers.items():
         if name.lower() == "content-type":
-            return "json" not in value.lower()
-    return False
+            return value.lower()
+    return ""
 
 
 class MockServer:
@@ -253,14 +254,19 @@ class MockServer:
         self._setup_error_handlers()
 
     def _make_response(self, mock: MockResponse, params: Dict[str, Any]) -> Response:
-        body = _substitute(mock.body, params)
         headers = _substitute(mock.headers, params)
-        if body is None:
+        content_type = _content_type(headers)
+        if mock.body is None:
             response = self.app.response_class(status=mock.status_code)
-        elif isinstance(body, str) and _wants_raw_body(headers):
+        elif isinstance(mock.body, str) and content_type and "json" not in content_type:
+            if "html" in content_type or "xml" in content_type:
+                # Path values come straight from the URL; escape them so a
+                # crafted link cannot inject markup or script into the page.
+                params = {key: html.escape(str(value)) for key, value in params.items()}
+            body = _substitute(mock.body, params)
             response = self.app.response_class(body, status=mock.status_code)
         else:
-            response = jsonify(body)
+            response = jsonify(_substitute(mock.body, params))
             response.status_code = mock.status_code
         for name, value in headers.items():
             response.headers[name] = value

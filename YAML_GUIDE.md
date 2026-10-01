@@ -203,7 +203,9 @@ types (for example a string with `>`) is simply false.
 ### 7. Plain Text Instead of JSON
 
 A string `body` is sent as raw text when `headers` sets a non-JSON
-`Content-Type`:
+`Content-Type`. If that type is HTML or XML (including `image/svg+xml`),
+substituted path parameter values are HTML-escaped, so `/page/<script>` cannot
+inject markup:
 
 ```yaml
 - path: /metrics

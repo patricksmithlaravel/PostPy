@@ -143,9 +143,18 @@ postpy show-history api_tests.json --limit 20
 `run-collection` exits with status 1 if any request cannot be sent or any
 assertion fails, so it can gate a CI job.
 
-History is stored under `~/.postpy/history/` (set `POSTPY_HOME` to move it).
-It records each request's name, method, endpoint template, status and timing.
-Headers, bodies and substituted variable values are never written to disk.
+History is stored under `~/.postpy/history/` (set `POSTPY_HOME` to move it),
+readable only by your user. It records each request's name, method, endpoint
+template, status and timing. Headers, bodies and substituted variable values
+are never written to disk.
+
+Control characters in response bodies and collection fields are printed as
+visible `\xNN` escapes, so a response cannot recolor, rewrite or retitle your
+terminal or set its clipboard.
+
+A collection decides where requests go, so running one with your environment
+file sends your variables to the hosts it names. Review collections from other
+people before running them with real credentials.
 
 ## Python API
 
@@ -243,6 +252,8 @@ more examples.
   in-browser debugger stays disabled, because it can run arbitrary code.
 - Conditions are parsed against a small allow-list of syntax and are never
   passed to `eval`, so values in the request URL cannot execute code.
+- In responses with an HTML or XML `Content-Type`, substituted path values are
+  HTML-escaped, so a crafted link cannot inject script into a mocked page.
 
 ### Example Requests
 

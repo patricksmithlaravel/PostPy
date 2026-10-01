@@ -10,6 +10,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from .output import printable
+
 console = Console()
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -80,7 +82,7 @@ def run(config_path: str, host: str, port: int, debug: bool) -> None:
         for endpoint in server.endpoints:
             table.add_row(
                 endpoint.method,
-                Text(endpoint.path),
+                Text(printable(endpoint.path)),
                 str(endpoint.response.status_code),
                 str(len(endpoint.conditions)) if endpoint.conditions else "",
             )

@@ -52,6 +52,17 @@ def _echo_app() -> Flask:
             "closing [/posts] and [bold]markup[/bold]", mimetype="text/plain"
         )
 
+    @app.route("/escape")
+    def escape() -> Response:
+        return Response(
+            "ok\x1b]0;title\x07\x1b]52;c;cHduZWQ=\x07\x1b[1A\x9b2K\r\nend",
+            mimetype="text/plain",
+        )
+
+    @app.route("/escape-json")
+    def escape_json() -> Response:
+        return jsonify(value="a\x1b[31mred\x9b2K")
+
     @app.route("/list")
     def as_list() -> Response:
         return jsonify([{"id": 1}, {"id": 2}])

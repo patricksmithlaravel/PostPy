@@ -95,6 +95,40 @@ def test_string_body_with_non_json_content_type_is_sent_raw(make_client):
     assert response.content_type == "text/plain"
 
 
+@pytest.mark.parametrize(
+    "content_type", ["text/html", "text/html; charset=utf-8", "image/svg+xml"]
+)
+def test_markup_bodies_escape_path_parameters(make_client, content_type):
+    client = make_client(f"""
+        endpoints:
+          - path: /page/{{name}}
+            response:
+              headers: {{Content-Type: "{content_type}", X-Name: "{{name}}"}}
+              body: "<p title='{{name}}'>Hello {{name}}</p>"
+        """)
+    response = client.get("/page/<img src=x onerror='alert(1)'>")
+
+    assert response.get_data(as_text=True) == (
+        "<p title='&lt;img src=x onerror=&#x27;alert(1)&#x27;&gt;'>"
+        "Hello &lt;img src=x onerror=&#x27;alert(1)&#x27;&gt;</p>"
+    )
+    assert response.headers["X-Name"] == "<img src=x onerror='alert(1)'>"
+
+
+def test_plain_text_and_json_bodies_are_not_html_escaped(make_client):
+    client = make_client("""
+        endpoints:
+          - path: /text/{v}
+            response:
+              headers: {Content-Type: text/plain}
+              body: "value={v}"
+          - path: /json/{v}
+            response: {body: {v: "{v}"}}
+        """)
+    assert client.get("/text/a<b").data == b"value=a<b"
+    assert client.get("/json/a<b").get_json() == {"v": "a<b"}
+
+
 def test_key_order_is_preserved(make_client):
     client = make_client("""
         endpoints:

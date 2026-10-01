@@ -34,9 +34,13 @@ class HistoryStore:
         new_lines = [entry.model_dump_json() for entry in entries]
         if not new_lines:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         lines = self._read_lines() + new_lines
-        self.path.write_text("\n".join(lines[-MAX_ENTRIES:]) + "\n", encoding="utf-8")
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Owner-only: an endpoint template can contain a hard-coded credential.
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        os.chmod(self.path, 0o600)  # also tighten files created by older versions
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[-MAX_ENTRIES:]) + "\n")
 
     def read(self, limit: Optional[int] = None) -> List[RequestHistory]:
         """Return entries oldest first; ``limit`` keeps only the newest ones."""
