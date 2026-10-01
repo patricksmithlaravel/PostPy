@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takes precedence over `~/.netrc`. Previously requests replaced it with the
   `.netrc` credentials for that host, so a test ran as a different user.
   `.netrc` still applies to requests without an `Authorization` header.
+- On a redirect to a different host or port, PostPy now forwards only standard headers
+  (`Accept`, `Content-Type`, `User-Agent` and similar). requests itself drops
+  only `Authorization`, so custom credential headers such as `X-API-Key` used
+  to reach the new host. Same-host redirects no longer let `~/.netrc` replace
+  an `Authorization` header.
+- Requests to loopback addresses (`127.0.0.0/8`, `::1`, `localhost`,
+  `*.localhost`) no longer go through `HTTP_PROXY` or `HTTPS_PROXY`. A remote
+  proxy cannot reach your machine's loopback interface, so runs against a
+  local mock server failed and the proxy saw their credentials. Proxies passed
+  explicitly from Python still apply.
 
 ## [1.4.0] - 2026-10-01
 

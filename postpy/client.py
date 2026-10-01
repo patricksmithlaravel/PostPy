@@ -14,6 +14,7 @@ from .core.executor import (
 )
 from .core.loader import CollectionLoader
 from .core.runner import CollectionRunner
+from .core.session import PostPySession
 
 EnvironmentSource = Union[Mapping[str, str], str, "os.PathLike[str]"]
 
@@ -48,7 +49,7 @@ class PostPy:
         else:
             self.variables = dict(environment)
         self.timeout = timeout
-        self.session = requests.Session()
+        self.session = PostPySession()
 
     def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         """Send a request; ``{{name}}`` placeholders in ``url`` are filled in.

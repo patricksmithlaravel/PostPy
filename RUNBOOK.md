@@ -107,9 +107,15 @@ Remove the firewall rule and stop the server when you are done.
 
 ### Proxies
 
-PostPy sends requests through any proxy set in `HTTP_PROXY` or `HTTPS_PROXY`,
-including requests to `127.0.0.1`. The proxy then sees your tokens and mock
-traffic. Exclude local addresses:
+PostPy sends requests for loopback addresses (`127.0.0.0/8`, `::1`,
+`localhost` and `*.localhost`) directly, even when `HTTP_PROXY` or
+`HTTPS_PROXY` is set, as browsers do. Requests to other hosts still go through
+the proxy. To inspect local traffic with an intercepting proxy such as
+mitmproxy, pass `proxies=` from Python or use your machine's LAN address.
+
+Other tools do not all behave this way. Plain Python `requests`, for example,
+sends `127.0.0.1` traffic through the proxy, which then sees your tokens and
+mock traffic. Exclude local addresses for them:
 
 ```bash
 export NO_PROXY=127.0.0.1,localhost
@@ -122,9 +128,8 @@ every request to that host that has no `Authorization` header. A collection
 that targets that host sends your `.netrc` password without ever mentioning it.
 
 An `Authorization` header set in your collection or passed to `PostPy` takes
-precedence over `.netrc`, so the test runs as the user you chose. The one
-exception is a redirect to another URL on the same host: requests applies
-`.netrc` to the redirected request, which replaces the header.
+precedence over `.netrc`, so the test runs as the user you chose. This also
+holds after a redirect to another URL on the same host.
 
 To stop `.netrc` credentials being sent at all, turn it off for test runs:
 
@@ -169,10 +174,13 @@ export NETRC=/dev/null
 6. **Send tokens in headers, not query strings.** Query strings are written to
    server, proxy and CDN access logs.
 
-7. **Prefer the `Authorization` header.** When a server redirects to a
-   different host, requests drops `Authorization` but re-sends custom headers
-   such as `X-API-Key` to the new host. If your API needs a custom key header,
-   check that the endpoints you test do not redirect off-site.
+7. **Expect credentials to stop at a redirect to another host or port.** PostPy then
+   forwards only standard headers such as `Accept`, `Content-Type` and
+   `User-Agent`. `Authorization`, `X-API-Key` and every other header the
+   collection set stay with the original host, so a `401` right after such a
+   redirect usually means the new host wanted credentials PostPy kept back.
+   Redirects that stay on the same host and port, or move from `http` to
+   `https` on the standard ports, keep all headers.
 
 8. **Env file values are literal.** `${OTHER}` is not expanded, so an env file
    cannot pull in variables from your shell.

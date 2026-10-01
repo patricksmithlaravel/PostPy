@@ -9,6 +9,7 @@ from .models import (
     TestAssertion,
 )
 from .runner import CollectionRunner, RequestResult
+from .session import PostPySession
 
 __all__ = [
     "AssertionResult",
@@ -16,6 +17,7 @@ __all__ = [
     "CollectionLoader",
     "CollectionRunner",
     "Environment",
+    "PostPySession",
     "Request",
     "RequestExecutor",
     "RequestHistory",
