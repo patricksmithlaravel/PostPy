@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 import requests
 
 from .models import AssertionResult, Request, RequestHistory, TestAssertion
+from .session import PostPySession
 
 DEFAULT_TIMEOUT = 30.0
 
@@ -64,7 +65,7 @@ class RequestExecutor:
         self.base_url = base_url
         self.environment_vars = dict(environment_vars or {})
         self.timeout = timeout
-        self.session = session or requests.Session()
+        self.session = session or PostPySession()
         self.history: List[RequestHistory] = []
 
     def substitute(self, value: Any) -> Any:

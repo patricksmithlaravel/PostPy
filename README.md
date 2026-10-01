@@ -152,6 +152,11 @@ PostPy prints control characters from response bodies and collection fields as
 visible `\xNN` escapes, so a response cannot recolor, rewrite or retitle your
 terminal or set its clipboard.
 
+On a redirect to a different host or port, PostPy forwards only standard headers such
+as `Accept` and `User-Agent`, so tokens in `Authorization` or custom headers
+like `X-API-Key` stay with the host you sent them to. Requests to `127.0.0.1`,
+`localhost` and other loopback addresses skip `HTTP_PROXY` and `HTTPS_PROXY`.
+
 A collection decides where requests go, so running one with your environment
 file sends your variables to the hosts it names. Review collections from other
 people before running them with real credentials.
@@ -315,7 +320,8 @@ postpy/
     ├── loader.py        # Collection and .env loading
     ├── mock_server.py   # Mock server and its config schema
     ├── models.py        # Collection data models
-    └── runner.py        # Runs collections
+    ├── runner.py        # Runs collections
+    └── session.py       # Redirect and proxy safeguards for every request
 examples/                # Sample collections, env files and mock config
 tests/                   # pytest suite
 ```

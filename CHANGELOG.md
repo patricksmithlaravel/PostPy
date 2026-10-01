@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- On a redirect to a different host or port, PostPy now forwards only standard headers
+  (`Accept`, `Content-Type`, `User-Agent` and similar). requests itself drops
+  only `Authorization`, so custom credential headers such as `X-API-Key` used
+  to reach the new host. Same-host redirects no longer let `~/.netrc` replace
+  an `Authorization` header.
+- Requests to loopback addresses (`127.0.0.0/8`, `::1`, `localhost`,
+  `*.localhost`) no longer go through `HTTP_PROXY` or `HTTPS_PROXY`. A remote
+  proxy cannot reach your machine's loopback interface, so runs against a
+  local mock server failed and the proxy saw their credentials. Proxies passed
+  explicitly from Python still apply.
+
 ## [1.4.0] - 2026-10-01
 
 ### Security
