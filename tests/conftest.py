@@ -1,3 +1,4 @@
+import base64
 import json
 import threading
 import time
@@ -20,6 +21,18 @@ def postpy_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "postpy-home"
     monkeypatch.setenv("POSTPY_HOME", str(home))
     return home
+
+
+@pytest.fixture
+def netrc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Give requests .netrc credentials for 127.0.0.1.
+
+    Returns the ``Authorization`` header those credentials produce.
+    """
+    path = tmp_path / "netrc"
+    path.write_text("machine 127.0.0.1 login netrcuser password netrcpass\n")
+    monkeypatch.setenv("NETRC", str(path))
+    return "Basic " + base64.b64encode(b"netrcuser:netrcpass").decode()
 
 
 def _serve(app: Flask) -> Iterator[str]:

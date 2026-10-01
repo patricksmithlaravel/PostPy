@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- An explicit `Authorization` header in a collection or a `PostPy` request now
+  takes precedence over `~/.netrc`. Previously requests replaced it with the
+  `.netrc` credentials for that host, so a test ran as a different user.
+  `.netrc` still applies to requests without an `Authorization` header.
 - On a redirect to a different host or port, PostPy now forwards only standard headers
   (`Accept`, `Content-Type`, `User-Agent` and similar). requests itself drops
   only `Authorization`, so custom credential headers such as `X-API-Key` used

@@ -25,6 +25,36 @@ def test_environment_file(echo_server, tmp_path):
     assert PostPy(environment=str(env)).variables == {"base": echo_server}
 
 
+@pytest.mark.parametrize("name", ["Authorization", "authorization"])
+def test_authorization_header_takes_precedence_over_netrc(echo_server, netrc, name):
+    echoed = PostPy().get(f"{echo_server}/me", headers={name: "Bearer mine"}).json()
+    assert echoed["headers"]["authorization"] == "Bearer mine"
+
+
+def test_session_authorization_header_takes_precedence_over_netrc(echo_server, netrc):
+    client = PostPy()
+    client.session.headers["Authorization"] = "Bearer session"
+
+    echoed = client.get(f"{echo_server}/me").json()
+    assert echoed["headers"]["authorization"] == "Bearer session"
+
+    # A None header removes the session's, so .netrc applies again.
+    echoed = client.get(f"{echo_server}/me", headers={"Authorization": None}).json()
+    assert echoed["headers"]["authorization"] == netrc
+
+
+def test_netrc_still_applies_without_authorization_header(echo_server, netrc):
+    echoed = PostPy().get(f"{echo_server}/me").json()
+    assert echoed["headers"]["authorization"] == netrc
+
+
+def test_auth_argument_is_not_overridden(echo_server, netrc):
+    response = PostPy().get(
+        f"{echo_server}/me", headers={"Authorization": "Bearer mine"}, auth=("u", "p")
+    )
+    assert response.json()["headers"]["authorization"] == "Basic dTpw"  # u:p
+
+
 def test_default_timeout_is_applied(monkeypatch):
     client = PostPy(timeout=3)
     seen = {}

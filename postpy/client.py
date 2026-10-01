@@ -7,7 +7,11 @@ from typing import Any, Mapping, Optional, Union
 
 import requests
 
-from .core.executor import DEFAULT_TIMEOUT, substitute_variables
+from .core.executor import (
+    DEFAULT_TIMEOUT,
+    keep_authorization_header,
+    substitute_variables,
+)
 from .core.loader import CollectionLoader
 from .core.runner import CollectionRunner
 from .core.session import PostPySession
@@ -50,10 +54,15 @@ class PostPy:
     def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         """Send a request; ``{{name}}`` placeholders in ``url`` are filled in.
 
-        Keyword arguments are passed to :meth:`requests.Session.request`.
+        Keyword arguments are passed to :meth:`requests.Session.request`. An
+        ``Authorization`` header takes precedence over ``~/.netrc``.
         """
         url = substitute_variables(url, self.variables)
         kwargs.setdefault("timeout", self.timeout)
+        if kwargs.get("auth") is None:
+            kwargs["auth"] = keep_authorization_header(
+                self.session, kwargs.get("headers")
+            )
         return self.session.request(method.upper(), url, **kwargs)
 
     def get(self, url: str, **kwargs: Any) -> requests.Response:

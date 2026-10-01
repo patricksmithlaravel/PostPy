@@ -1,9 +1,10 @@
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from .models import AssertionResult, Request, RequestHistory, TestAssertion
 from .session import PostPySession
@@ -30,6 +31,30 @@ def substitute_variables(value: Any, variables: Mapping[str, str]) -> Any:
             key: substitute_variables(item, variables) for key, item in value.items()
         }
     return value
+
+
+def _unchanged(request: requests.PreparedRequest) -> requests.PreparedRequest:
+    return request
+
+
+def keep_authorization_header(
+    session: requests.Session, headers: Optional[Mapping[str, Any]]
+) -> Optional[Callable[[requests.PreparedRequest], requests.PreparedRequest]]:
+    """Return an ``auth`` that stops ``~/.netrc`` replacing an explicit header.
+
+    requests only reads ``~/.netrc`` when neither the request nor the session
+    has ``auth``, so a no-op auth is enough to skip the lookup. Returns None
+    when no ``Authorization`` header is set, so ``.netrc`` still applies to
+    those requests, or when the session's own ``auth`` already skips it.
+    """
+    if session.auth is not None:
+        return None
+    merged: CaseInsensitiveDict[Any] = CaseInsensitiveDict(session.headers)
+    merged.update(headers or {})
+    # A None value removes a session header, as in requests.
+    if merged.get("Authorization") is None:
+        return None
+    return _unchanged
 
 
 def _lookup(data: Any, path: str) -> Any:
@@ -105,6 +130,7 @@ class RequestExecutor:
             json=body if isinstance(body, (dict, list)) else None,
             data=body if isinstance(body, str) else None,
             timeout=self.timeout,
+            auth=keep_authorization_header(self.session, headers),
         )
         response_time = time.perf_counter() - start_time
 

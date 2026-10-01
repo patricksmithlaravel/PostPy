@@ -123,11 +123,15 @@ export NO_PROXY=127.0.0.1,localhost
 
 ### `~/.netrc`
 
-If `~/.netrc` has an entry for a host, requests sends those credentials to
-that host. They replace any `Authorization` header set in your collection, so
-the test runs as a different user, and a collection that targets that host
-sends your `.netrc` password without ever mentioning it. Turn this off for test
-runs:
+If `~/.netrc` has an entry for a host, requests sends those credentials on
+every request to that host that has no `Authorization` header. A collection
+that targets that host sends your `.netrc` password without ever mentioning it.
+
+An `Authorization` header set in your collection or passed to `PostPy` takes
+precedence over `.netrc`, so the test runs as the user you chose. This also
+holds after a redirect to another URL on the same host.
+
+To stop `.netrc` credentials being sent at all, turn it off for test runs:
 
 ```bash
 export NETRC=/dev/null
