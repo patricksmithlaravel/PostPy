@@ -53,7 +53,8 @@ body, then a summary such as `8 passed, 0 failed`.
 
 ### Collection File Format
 
-A collection is a JSON or YAML file:
+A collection is a JSON or YAML file. YAML collections may not use aliases
+(`*name`):
 
 ```json
 {
@@ -262,6 +263,8 @@ use, handling credentials, running in CI, and what to do if a token leaks.
   passed to `eval`, so values in the request URL cannot execute code.
 - In responses with an HTML or XML `Content-Type`, substituted path values are
   HTML-escaped, so a crafted link cannot inject script into a mocked page.
+- When bound to a loopback address, the server answers `421` to requests whose
+  Host header is not a loopback name. This blocks DNS rebinding from web pages.
 
 ### Example Requests
 

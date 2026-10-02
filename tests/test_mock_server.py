@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from postpy.core.mock_server import MockConfigError, MockServer
+from postpy.core.mock_server import LOOPBACK_HOSTS, MockConfigError, MockServer
 from tests.conftest import EXAMPLES
 
 
@@ -363,6 +363,56 @@ def test_create_config_does_not_overwrite_by_default(tmp_path):
 
     MockServer.create_config(path, overwrite=True)
     assert "endpoints:" in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "host, status",
+    [
+        ("127.0.0.1:5001", 200),
+        ("localhost:5001", 200),
+        ("[::1]:5001", 200),
+        ("api.localhost", 200),
+        ("attacker.example", 421),
+        ("127.0.0.1.attacker.example", 421),
+        ("localhost.attacker.example:5001", 421),
+    ],
+)
+def test_loopback_server_rejects_foreign_host_headers(host, status):
+    server = MockServer(EXAMPLES / "mock_config.yaml")
+    server.allowed_hosts = set(LOOPBACK_HOSTS)
+    client = server.app.test_client()
+
+    assert client.get("/api/v1/health", headers={"Host": host}).status_code == status
+    # Unknown paths are refused too, before routing.
+    expected_missing = 404 if status == 200 else 421
+    assert client.get("/nope", headers={"Host": host}).status_code == expected_missing
+
+
+def test_host_check_is_off_until_run_binds_to_loopback():
+    server = MockServer(EXAMPLES / "mock_config.yaml")
+    client = server.app.test_client()
+    response = client.get("/api/v1/health", headers={"Host": "anything.example"})
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "host, checked",
+    [
+        ("127.0.0.1", True),
+        ("localhost", True),
+        ("::1", True),
+        ("0.0.0.0", False),
+        ("192.168.1.50", False),
+    ],
+)
+def test_run_enables_the_host_check_only_on_loopback(monkeypatch, host, checked):
+    server = MockServer(EXAMPLES / "mock_config.yaml")
+    monkeypatch.setattr(server.app, "run", lambda **kwargs: None)
+
+    server.run(host=host)
+
+    assert (server.allowed_hosts == set(LOOPBACK_HOSTS)) is checked
+    assert (server.allowed_hosts is None) is not checked
 
 
 def test_run_never_enables_the_interactive_debugger(monkeypatch):

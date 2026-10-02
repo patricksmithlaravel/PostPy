@@ -45,14 +45,17 @@ tests/                   # pytest suite
 
 ### Collections
 
-- `CollectionLoader` parses files into pydantic models (`models.py`).
+- `CollectionLoader` parses files into pydantic models (`models.py`). YAML
+  goes through `_NoAliasLoader`, a `SafeLoader` that rejects aliases to stop
+  alias-expansion memory bombs.
   `base_url` must be an absolute http(s) URL unless it contains `{{...}}`.
 - `RequestExecutor` substitutes variables in the base URL, endpoint, headers,
   query parameters and body at any depth, in a single pass. It sends through
   one `requests.Session` with a timeout (default 30 s).
 - `RequestExecutor` and `PostPy` default to `PostPySession`. On a redirect to
-  a different host or port it forwards only `REDIRECT_SAFE_HEADERS`; on a same-host
-  redirect it keeps `Authorization` instead of letting `~/.netrc` replace it.
+  a different host or port it forwards only `REDIRECT_SAFE_HEADERS` and never
+  looks up `~/.netrc` for the new host; on a same-host redirect it keeps
+  `Authorization` instead of letting `~/.netrc` replace it.
   Loopback URLs skip environment proxies unless proxies were passed
   explicitly. A caller-supplied plain `requests.Session` gets none of this.
 - `run_tests` returns one `AssertionResult` per check. `json_field_equals`
@@ -83,6 +86,9 @@ tests/                   # pytest suite
   never calls `eval`.
 - Unmatched routes return JSON 404s; wrong methods return JSON 405s with an
   `Allow` header.
+- `run()` sets `allowed_hosts` when binding to a loopback address, and a
+  `before_request` hook then answers 421 to non-loopback Host headers (DNS
+  rebinding). Test clients and non-loopback binds skip the check.
 - A string body with an HTML or XML `Content-Type` is sent raw, with
   substituted path values HTML-escaped.
 - `run()` always passes `use_debugger=False`. With `--debug` it reloads when

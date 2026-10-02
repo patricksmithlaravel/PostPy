@@ -9,6 +9,24 @@ from dotenv import dotenv_values
 from .models import Collection, Environment
 
 
+class _NoAliasLoader(yaml.SafeLoader):
+    """``yaml.SafeLoader`` that rejects aliases (``*name``).
+
+    Nested aliases let a file of a few hundred bytes expand into gigabytes,
+    and collections have no use for them.
+    """
+
+    def compose_node(self, parent: Any, index: Any) -> Any:
+        if self.check_event(yaml.AliasEvent):
+            raise yaml.composer.ComposerError(
+                None,
+                None,
+                "aliases (*name) are not allowed in collections",
+                self.peek_event().start_mark,
+            )
+        return super().compose_node(parent, index)
+
+
 class CollectionLoader:
     @staticmethod
     def load_collection(file_path: Union[str, "os.PathLike[str]"]) -> Collection:
@@ -28,7 +46,7 @@ class CollectionLoader:
         data: Any
         if path.suffix.lower() in [".yaml", ".yml"]:
             try:
-                data = yaml.safe_load(text)
+                data = yaml.load(text, Loader=_NoAliasLoader)
             except yaml.YAMLError as exc:
                 raise ValueError(f"{file_path} is not valid YAML: {exc}") from None
         else:

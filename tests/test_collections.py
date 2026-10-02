@@ -87,6 +87,48 @@ def test_load_unparseable_collection(tmp_path, name, text, message):
         CollectionLoader.load_collection(path)
 
 
+def test_yaml_aliases_are_rejected(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text(
+        "x: &big [1, 2, 3]\n"
+        "collection_name: C\n"
+        "base_url: http://localhost\n"
+        "requests:\n"
+        "  - {name: A, method: POST, endpoint: /a, body: {items: *big}}\n"
+    )
+    with pytest.raises(ValueError, match=r"aliases \(\*name\) are not allowed"):
+        CollectionLoader.load_collection(path)
+
+
+def test_yaml_alias_bomb_is_rejected(tmp_path):
+    """Twelve levels of tenfold aliases would expand to 10**12 items."""
+    lines = ["x:", '  a0: &a0 ["xxxxxxxxxx"]']
+    for i in range(1, 12):
+        lines.append(f"  a{i}: &a{i} [" + ",".join([f"*a{i - 1}"] * 10) + "]")
+    lines += [
+        "collection_name: C",
+        "base_url: http://localhost",
+        "requests:",
+        "  - {name: A, method: POST, endpoint: /a, body: {b: *a11}}",
+    ]
+    path = tmp_path / "bomb.yaml"
+    path.write_text("\n".join(lines))
+
+    with pytest.raises(ValueError, match="not allowed"):
+        CollectionLoader.load_collection(path)
+
+
+def test_yaml_anchors_without_aliases_still_load(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text(
+        "collection_name: C\n"
+        "base_url: http://localhost\n"
+        "requests:\n"
+        "  - &first {name: A, method: GET, endpoint: /a}\n"
+    )
+    assert CollectionLoader.load_collection(path).requests[0].name == "A"
+
+
 def test_load_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME_SECRET", "leak")
     path = tmp_path / ".env"

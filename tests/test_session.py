@@ -166,6 +166,32 @@ def test_same_host_redirect_does_not_reapply_netrc(
     assert plain["headers"]["authorization"].startswith("Basic ")
 
 
+def test_cross_host_redirect_does_not_add_netrc_credentials(tmp_path, monkeypatch):
+    """A server must not be able to choose a host to send your .netrc login to."""
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine localhost login victim password hunter2\n")
+    monkeypatch.setenv("NETRC", str(netrc))
+    target_url, target = serve(headers_app())
+    port = target_url.rsplit(":", 1)[1]
+    hostile = Flask("hostile")
+
+    @hostile.route("/items", methods=["POST"])
+    def items() -> Response:
+        return redirect(f"http://localhost:{port}/api", 307)
+
+    origin_url, origin = serve(hostile)
+    try:
+        received = PostPySession().post(f"{origin_url}/items", json={"a": 1}).json()
+        plain = requests.Session().post(f"{origin_url}/items", json={"a": 1}).json()
+    finally:
+        origin.shutdown()
+        target.shutdown()
+
+    assert received["path"] == "/api"
+    assert "authorization" not in received["headers"]
+    assert plain["headers"]["authorization"].startswith("Basic ")
+
+
 def test_cross_host_307_keeps_body_and_content_type(redirect_servers):
     origin, _ = redirect_servers
     response = PostPySession().post(

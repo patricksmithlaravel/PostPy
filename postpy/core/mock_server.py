@@ -6,7 +6,8 @@ import html
 import re
 from importlib import resources
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from urllib.parse import urlsplit
 
 import yaml
 from flask import Flask, Response, jsonify, request
@@ -26,6 +27,8 @@ from .conditions import Condition
 from .errors import format_validation_error
 
 MOCK_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 # Keys that mark a response as the {status_code, body, headers} envelope form.
 ENVELOPE_KEYS = frozenset({"status_code", "body", "headers"})
@@ -250,6 +253,10 @@ class MockServer:
         self.config = load_mock_config(config_path)
         self.app = Flask(__name__)
         self.app.json.sort_keys = False  # type: ignore[attr-defined]
+        # Host names accepted in the Host header; None accepts any. run() sets
+        # this when binding to loopback so DNS rebinding cannot reach the server.
+        self.allowed_hosts: Optional[Set[str]] = None
+        self._setup_host_check()
         self._setup_routes()
         self._setup_error_handlers()
 
@@ -289,6 +296,23 @@ class MockServer:
                 view_func=create_handler(endpoint),
             )
 
+    def _setup_host_check(self) -> None:
+        """Reject requests whose Host header is not in ``allowed_hosts``.
+
+        A web page can point its own domain at 127.0.0.1 (DNS rebinding) and
+        then read responses from a server on your machine. Its requests still
+        carry the page's domain in the Host header, which this check refuses.
+        """
+
+        @self.app.before_request
+        def check_host() -> Optional[Tuple[Response, int]]:
+            if self.allowed_hosts is None:
+                return None
+            hostname = urlsplit("//" + request.host).hostname or ""
+            if hostname in self.allowed_hosts or hostname.endswith(".localhost"):
+                return None
+            return jsonify(error="Misdirected Request"), 421
+
     def _setup_error_handlers(self) -> None:
         """Return JSON instead of Flask's HTML pages for routing errors."""
 
@@ -324,15 +348,19 @@ class MockServer:
     ) -> None:
         """Run the mock server.
 
-        Debug mode reloads the server when the config file changes. Werkzeug's
-        interactive debugger is always disabled: it allows code execution from
-        the browser and the mock server has nothing to debug interactively.
+        When ``host`` is a loopback address, requests must also use a loopback
+        Host header. Debug mode reloads the server when the config file
+        changes. Werkzeug's interactive debugger is always disabled: it allows
+        code execution from the browser and the mock server has nothing to
+        debug interactively.
 
         Args:
             host: Host to run the server on.
             port: Port to run the server on.
             debug: Whether to run in debug mode.
         """
+        if host in LOOPBACK_HOSTS:
+            self.allowed_hosts = set(LOOPBACK_HOSTS)
         self.app.run(
             host=host,
             port=port,
