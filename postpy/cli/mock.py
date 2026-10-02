@@ -14,8 +14,6 @@ from .output import printable
 
 console = Console()
 
-LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
-
 
 @click.group()
 def mock_group() -> None:
@@ -48,7 +46,7 @@ def run(config_path: str, host: str, port: int, debug: bool) -> None:
 
     CONFIG_PATH: Path to the configuration file that defines endpoints and responses
     """
-    from ..core.mock_server import MockConfigError, MockServer
+    from ..core.mock_server import LOOPBACK_HOSTS, MockConfigError, MockServer
 
     try:
         server = MockServer(config_path)

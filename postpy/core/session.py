@@ -45,8 +45,9 @@ class PostPySession(requests.Session):
     - On a redirect to a different host or port, only
       ``REDIRECT_SAFE_HEADERS`` are forwarded. Plain requests drops
       ``Authorization`` but re-sends custom credential headers such as
-      ``X-API-Key`` to the new host. On a same-host redirect, an
-      ``Authorization`` header is kept rather than replaced from ``~/.netrc``.
+      ``X-API-Key`` to the new host. ``~/.netrc`` credentials are never added
+      for the new host either. On a same-host redirect, an ``Authorization``
+      header is kept rather than replaced from ``~/.netrc``.
     - Requests to loopback addresses never go through ``HTTP_PROXY`` or
       ``HTTPS_PROXY``, as in browsers. A remote proxy cannot reach your
       machine's loopback interface and would see the request's credentials.
@@ -59,7 +60,11 @@ class PostPySession(requests.Session):
             for name in list(headers):
                 if name.lower() not in REDIRECT_SAFE_HEADERS:
                     del headers[name]
-        elif "Authorization" in headers:
+            # The server chose this host, so don't attach ~/.netrc credentials
+            # for it. requests would, letting a redirect pick any host you have
+            # a .netrc login for, over plain http if it likes.
+            return
+        if "Authorization" in headers:
             # Same host: keep the header. requests would otherwise re-apply
             # ~/.netrc here and replace a token the request set itself.
             return

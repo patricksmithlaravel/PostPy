@@ -67,6 +67,11 @@ Reasons for these choices:
 - **Publish container ports on loopback.** `-p 5001:5001` listens on every
   host interface, and on Linux Docker's iptables rules bypass `ufw`. Always
   include `127.0.0.1:` in `-p`.
+- **A loopback bind also blocks DNS rebinding.** When bound to `127.0.0.1`,
+  `localhost` or `::1`, the server refuses requests whose Host header is not a
+  loopback name, so a web page cannot point its own domain at your machine and
+  read the responses. Bound to a LAN IP or `0.0.0.0`, it accepts any Host
+  header, because other devices may use any name to reach it.
 - **The mock server is Werkzeug's development server.** It is for one
   developer or one CI job. Do not put it behind a public reverse proxy or use
   it as a shared staging service.
@@ -129,7 +134,9 @@ that targets that host sends your `.netrc` password without ever mentioning it.
 
 An `Authorization` header set in your collection or passed to `PostPy` takes
 precedence over `.netrc`, so the test runs as the user you chose. This also
-holds after a redirect to another URL on the same host.
+holds after a redirect to another URL on the same host. After a redirect to a
+different host or port, PostPy never adds `.netrc` credentials, so a server
+cannot choose where your `.netrc` login goes.
 
 To stop `.netrc` credentials being sent at all, turn it off for test runs:
 
@@ -202,7 +209,8 @@ export NETRC=/dev/null
 - [ ] Every target that receives credentials uses `https://`.
 - [ ] If someone else wrote the collection, run it first against the mock
       server or with an env file of dummy values. A collection can send your
-      variables to any host it names.
+      variables to any host it names. (PostPy refuses YAML collections that
+      use aliases, which can expand a small file into gigabytes.)
 - [ ] If you are sharing your screen or recording, add `--quiet` so response
       bodies are not shown.
 
